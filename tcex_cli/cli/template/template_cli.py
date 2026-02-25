@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # third-party
@@ -223,7 +223,10 @@ class TemplateCli(CliABC):
             )
 
         merged_dir = self._build_merged_template(
-            cache_dir, _template_name, _template_type, app_builder  # type: ignore[arg-type]
+            cache_dir,
+            _template_name,
+            _template_type,
+            app_builder,  # type: ignore[arg-type]
         )
         try:
             self._migrate_legacy_manifest(merged_dir, Path.cwd())
@@ -336,7 +339,7 @@ class TemplateCli(CliABC):
         except (ValueError, AttributeError):
             return False
 
-        cache_mtime = datetime.fromtimestamp(cache_dir.stat().st_mtime, tz=timezone.utc)
+        cache_mtime = datetime.fromtimestamp(cache_dir.stat().st_mtime, tz=UTC)
         return remote_dt > cache_mtime
 
     def _remote_commit_date(self, branch: str) -> str | None:
@@ -643,6 +646,4 @@ class TemplateCli(CliABC):
             fh.write('\n')
 
         legacy_path.unlink()
-        self.log.info(
-            'action=migrate-legacy-manifest, migrated-files=%d', len(local_manifest)
-        )
+        self.log.info('action=migrate-legacy-manifest, migrated-files=%d', len(local_manifest))

@@ -17,10 +17,10 @@ from typing import TypedDict
 # third-party
 from pydantic import BaseModel, Field
 
-
 # ==================================================================
 # Shared Types
 # ==================================================================
+
 
 class FileMeta(TypedDict):
     """Metadata for a single file in the manifest."""
@@ -36,6 +36,7 @@ Meta = dict[str, FileMeta]  # key: POSIX-style project-relative path
 # ==================================================================
 # Plan Model
 # ==================================================================
+
 
 class Plan(BaseModel):
     """Update plan for template files.
@@ -83,6 +84,7 @@ class Plan(BaseModel):
 # Hashing
 # ==================================================================
 
+
 class Hasher:
     """Stable SHA-256 hashing for files."""
 
@@ -104,6 +106,7 @@ class Hasher:
 # ==================================================================
 # Manifest I/O
 # ==================================================================
+
 
 class ManifestStore:
     """Load manifest.json files and compute key sets."""
@@ -136,6 +139,7 @@ class ManifestStore:
 # ==================================================================
 # Safe File Operations
 # ==================================================================
+
 
 class SafeFileOps:
     """Filesystem mutations with preserved file modes."""
@@ -181,6 +185,7 @@ class SafeFileOps:
 # ==================================================================
 # Planner
 # ==================================================================
+
 
 class Planner:
     """Compute and apply file-level update plans.
@@ -318,11 +323,7 @@ class Planner:
             for local, template in sorted(prompt_set):
                 local_ = project_root / local
                 if local in removed_keys:
-                    response = (
-                        prompt_fn(f"Remove modified file '{local}'?")
-                        .strip()
-                        .lower()
-                    )
+                    response = prompt_fn(f"Remove modified file '{local}'?").strip().lower()
                     if response == 'y':
                         self.file_ops.remove_file(local_)
                 else:
