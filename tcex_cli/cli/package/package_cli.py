@@ -75,6 +75,8 @@ class PackageCli(CliABC):
             '.python-version',  # pyenv
             '.ruff_cache/**',  # ruff cache directory
             '.template_manifest.json',  # template manifest file
+            'manifest.json',  # template manifest file (new format)
+            'template.json',  # template manifest file (new format)
             '.venv',  # virtual environment directory
             '.vscode',  # Visual Studio Code
             'angular.json',  # angular configuration file

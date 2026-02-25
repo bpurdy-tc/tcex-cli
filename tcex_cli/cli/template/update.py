@@ -8,7 +8,6 @@ from typing import Optional
 import typer
 
 # first-party
-from tcex_cli.cli.template.tcv_helper import TCVHelper
 from tcex_cli.cli.template.template_cli import TemplateCli
 from tcex_cli.render.render import Render
 
@@ -26,11 +25,17 @@ def command(
         None, '--template', help='Only provide this value if changing the saved value.'
     ),
     template_type: StrOrNone = typer.Option(None, '--type', help='The App type being initialized.'),
-    branch: str = typer.Option(
-        default_branch, help='The git branch of the tcex-app-template repository to use.'
+    clear: bool = typer.Option(
+        default=False, help='Clear stored template cache in ~/.tcex/ directory.'
     ),
     force: bool = typer.Option(
         default=False, help="Update files from template even if they haven't changed."
+    ),
+    branch: str = typer.Option(
+        default_branch, help='The git branch of the tcex-app-template repository to use.'
+    ),
+    app_builder: bool = typer.Option(
+        default=False, help='Include .appbuilderconfig file in template download.'
     ),
     proxy_host: StrOrNone = typer.Option(None, help='(Advanced) Hostname for the proxy server.'),
     proxy_port: IntOrNone = typer.Option(None, help='(Advanced) Port number for the proxy server.'),
@@ -63,44 +68,27 @@ def command(
         proxy_user,
         proxy_pass,
     )
+
+    if clear:
+        cli.clear_cache(branch)
+
     try:
-        if template_type == 'tie' and template_name:
-            tcv_helper = TCVHelper(cli)
-            tcv_helper.update(branch, template_name, template_type)
-            Render.table.key_value(
-                'Initialization Summary',
-                {
-                    'Template Name': template_name,
-                    'Template Type': template_type,
-                    'Branch': branch,
-                },
-            )
-            return
+        # pass raw CLI args — TemplateCli.update() resolves None from tcex.json
+        cli.update(branch, template_name, template_type, force, app_builder)
 
-        downloads = cli.update(branch, template_name, template_type, force)
-        if not downloads:
-            Render.panel.info('No files to update.')
-        else:
-            progress = Render.progress_bar_download()
-            with progress:
-                for item in progress.track(
-                    downloads,
-                    description='Downloading',
-                ):
-                    cli.download_template_file(item)
+        # read the resolved values (loaded by update() from tcex.json)
+        resolved_name = cli.app.tj.model.template_name
+        resolved_type = cli.app.tj.model.template_type
 
-        # update manifest
-        cli.template_manifest_write()
-
-        # update tcex.json file
-        cli.update_tcex_json()
+        # only persist to tcex.json when user explicitly changed template/type
+        if template_name is not None or template_type is not None:
+            cli.update_tcex_json(resolved_name, resolved_type)
 
         Render.table.key_value(
             'Update Summary',
             {
-                'Template Type': cli.app.tj.model.template_type,
-                'Template Name': cli.app.tj.model.template_name,
-                'Files Updated': str(len(downloads)),
+                'Template Type': resolved_type,
+                'Template Name': resolved_name,
                 'Branch': branch,
             },
         )

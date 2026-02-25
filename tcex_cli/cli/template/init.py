@@ -8,7 +8,6 @@ from typing import Optional
 import typer
 
 # first-party
-from tcex_cli.cli.template.tcv_helper import TCVHelper
 from tcex_cli.cli.template.template_cli import TemplateCli
 from tcex_cli.render.render import Render
 
@@ -55,12 +54,6 @@ def command(
     * PROXY_USER\n
     * PROXY_PASS\n
     """
-    cli = TemplateCli(
-        proxy_host,
-        proxy_port,
-        proxy_user,
-        proxy_pass,
-    )
     if list(Path.cwd().iterdir()) and force is False:
         Render.panel.failure(
             'The current directory does not appear to be empty. Apps should '
@@ -68,47 +61,28 @@ def command(
             'existing App then please try using the "tcex update" command instead.',
         )
 
+    cli = TemplateCli(
+        proxy_host,
+        proxy_port,
+        proxy_user,
+        proxy_pass,
+    )
+
     if clear:
-        # clear the template cache
-        cli.clear()
+        cli.clear_cache(branch)
 
     try:
-        if template_type == 'tie':
-            tcv_helper = TCVHelper(cli)
-            tcv_helper.init(branch, template_name, template_type)
-            Render.table.key_value(
-                'Initialization Summary',
-                {
-                    'Template Name': template_name,
-                    'Template Type': template_type,
-                    'Branch': branch,
-                },
-            )
-            return
-
-        Render.panel.info('Installing template files')
-        downloads = cli.init(branch, template_name, template_type, app_builder)
-        progress = Render.progress_bar_download()
-        with progress:
-            for item in progress.track(
-                downloads,
-                description='Downloading',
-            ):
-                cli.download_template_file(item)
+        cli.update(branch, template_name, template_type, force=True, app_builder=app_builder)
 
         # update tcex.json file with template data, external App do not support tcex.json
         if template_type != 'external':
-            cli.update_tcex_json()
-
-            # update manifest
-            cli.template_manifest_write()
+            cli.update_tcex_json(template_name, template_type)
 
         Render.table.key_value(
             'Initialization Summary',
             {
                 'Template Name': template_name,
                 'Template Type': template_type,
-                'Files Downloaded': str(len(downloads)),
                 'Branch': branch,
             },
         )
