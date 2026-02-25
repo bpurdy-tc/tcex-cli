@@ -470,20 +470,10 @@ class TemplateCli(CliABC):
                 )
                 continue
 
-            # merge manifest.json entries from this parent
-            manifest_path = src_dir / 'manifest.json'
-            if manifest_path.is_file():
-                try:
-                    with manifest_path.open('r', encoding='utf-8') as fh:
-                        parent_manifest = json.load(fh)
-                    if isinstance(parent_manifest, dict):
-                        merged_manifest.update(parent_manifest)
-                except (json.JSONDecodeError, OSError):
-                    self.log.exception(
-                        f'action=build-merged-template, failed-loading-manifest={manifest_path}'
-                    )
-
             # copy files from this parent (child overwrites parent)
+            # manifest is built purely from copied files — no pre-loading
+            # of parent manifests, which can contain stale entries for
+            # files excluded by skip_names or app_builder filtering
             for src_file in src_dir.rglob('*'):
                 if not src_file.is_file():
                     continue
