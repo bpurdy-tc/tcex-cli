@@ -22,9 +22,15 @@ StrOrNone = Optional[str]  # noqa: UP007
 
 def command(
     template_name: StrOrNone = typer.Option(
-        None, '--template', help='Only provide this value if changing the saved value.'
+        None,
+        '--template',
+        help='The App template name (only when tcex.json is missing the value).',
     ),
-    template_type: StrOrNone = typer.Option(None, '--type', help='The App type being initialized.'),
+    template_type: StrOrNone = typer.Option(
+        None,
+        '--type',
+        help='The App type (only when tcex.json is missing the value).',
+    ),
     clear: bool = typer.Option(
         default=False, help='Clear stored template cache in ~/.tcex/ directory.'
     ),
@@ -33,9 +39,6 @@ def command(
     ),
     branch: str = typer.Option(
         default_branch, help='The git branch of the tcex-app-template repository to use.'
-    ),
-    app_builder: bool = typer.Option(
-        default=False, help='Include .appbuilderconfig file in template download.'
     ),
     proxy_host: StrOrNone = typer.Option(None, help='(Advanced) Hostname for the proxy server.'),
     proxy_port: IntOrNone = typer.Option(None, help='(Advanced) Port number for the proxy server.'),
@@ -46,9 +49,9 @@ def command(
 
     Templates can be found at: https://github.com/ThreatConnect-Inc/tcex-app-templates
 
-    The template name will be pulled from tcex.json by default. If the template option
-    is provided it will be used instead of the value in the tcex.json file. The tcex.json
-    file will also be updated with new values.
+    The template name and type are read from the project's tcex.json file.
+    Use --template and --type only for legacy projects where tcex.json is
+    missing those values.
 
     Optional environment variables include:\n
     * PROXY_HOST\n
@@ -69,20 +72,31 @@ def command(
         proxy_pass,
     )
 
+    tj_model = cli.app.tj.model
+
+    # If tcex.json already has template_name, --template must NOT be provided.
+    if tj_model.template_name is not None and template_name is not None:
+        Render.panel.failure(
+            'The --template flag cannot be used when template_name is already '
+            'set in tcex.json. Remove the flag or clear the value in tcex.json.',
+        )
+
+    # If tcex.json already has template_type, --type must NOT be provided.
+    if tj_model.template_type is not None and template_type is not None:
+        Render.panel.failure(
+            'The --type flag cannot be used when template_type is already '
+            'set in tcex.json. Remove the flag or clear the value in tcex.json.',
+        )
+
     if clear:
         cli.clear_cache(branch)
 
     try:
-        # pass raw CLI args — TemplateCli.update() resolves None from tcex.json
-        cli.update(branch, template_name, template_type, force, app_builder)
+        cli.update(branch, template_name, template_type, force=force)
 
-        # read the resolved values (loaded by update() from tcex.json)
-        resolved_name = cli.app.tj.model.template_name
-        resolved_type = cli.app.tj.model.template_type
-
-        # only persist to tcex.json when user explicitly changed template/type
-        if template_name is not None or template_type is not None:
-            cli.update_tcex_json(resolved_name, resolved_type)
+        # use the resolved values for the summary
+        resolved_name = template_name or tj_model.template_name
+        resolved_type = template_type or tj_model.template_type
 
         Render.table.key_value(
             'Update Summary',

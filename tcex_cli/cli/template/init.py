@@ -74,10 +74,6 @@ def command(
     try:
         cli.update(branch, template_name, template_type, force=True, app_builder=app_builder)
 
-        # update tcex.json file with template data, external App do not support tcex.json
-        if template_type != 'external':
-            cli.update_tcex_json(template_name, template_type)
-
         Render.table.key_value(
             'Initialization Summary',
             {

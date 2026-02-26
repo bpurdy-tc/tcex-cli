@@ -21,17 +21,6 @@ from tcex_cli.cli.template.template_cli import TemplateCli
 
 class ProjectHelper:
     @staticmethod
-    def write_tcex_json(
-        project_dir: Path, template_name: str, template_type: str
-    ) -> None:
-        data = {
-            'package': {'app_name': 'TestApp', 'app_version': 'v1', 'excludes': []},
-            'template_name': template_name,
-            'template_type': template_type,
-        }
-        (project_dir / 'tcex.json').write_text(json.dumps(data, indent=2))
-
-    @staticmethod
     def init_project(
         cli: TemplateCli,
         project_dir: Path,
@@ -42,7 +31,6 @@ class ProjectHelper:
         monkeypatch.chdir(project_dir)
         with patch.object(cli, 'ensure_cache', return_value=cli._cache_dir('v2')):
             cli.update('v2', template_name, template_type, force=True)
-        ProjectHelper.write_tcex_json(project_dir, template_name, template_type)
 
     @staticmethod
     def simulate_template_change(project_dir: Path, filename: str) -> None:
@@ -382,10 +370,7 @@ class TestUpdateManifestIntegrity:
         manifest = json.loads((project_dir / 'manifest.json').read_text())
         hasher = Hasher()
 
-        skip_keys = {'tcex.json'}
         for key, entry in manifest.items():
-            if key in skip_keys:
-                continue
             file_path = project_dir / key
             if file_path.is_file():
                 actual_hash = hasher.sha256_file(file_path)
@@ -403,10 +388,7 @@ class TestUpdateManifestIntegrity:
 
         manifest = json.loads((project_dir / 'manifest.json').read_text())
         hasher = Hasher()
-        skip_keys = {'tcex.json'}
         for key, entry in manifest.items():
-            if key in skip_keys:
-                continue
             file_path = project_dir / key
             if file_path.is_file():
                 actual_hash = hasher.sha256_file(file_path)

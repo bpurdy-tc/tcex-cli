@@ -253,43 +253,35 @@ class TemplateCli(CliABC):
             merged_manifest = merged_dir / 'manifest.json'
             if merged_manifest.is_file():
                 shutil.copy2(str(merged_manifest), str(Path.cwd() / 'manifest.json'))
+
+            # ensure tcex.json exists with correct template values
+            self._ensure_tcex_json(cache_dir, _template_name, _template_type)
         finally:
             shutil.rmtree(merged_dir, ignore_errors=True)
 
-    def update_tcex_json(self, template_name: str, template_type: str):
-        """Write template metadata to tcex.json.
+    def _ensure_tcex_json(self, cache_dir: Path, template_name: str, template_type: str) -> None:
+        """Ensure tcex.json exists with correct template_name and template_type.
 
-        During init, tcex.json may not exist yet — creates it from scratch
-        with sensible defaults (app_name prefix from template_to_prefix_map).
-        During update, modifies in place via the model.
+        tcex.json is skipped during template merge because it contains
+        project-specific values (app_name, excludes, etc.) that shouldn't
+        be overwritten. Only template_name and template_type are managed.
+
+        - If tcex.json doesn't exist: copy the fresh one from the leaf template
+          (it already contains the correct template_name/template_type).
+        - If tcex.json exists: update template_name and template_type via the model.
         """
-        tcex_json_path = Path.cwd() / 'tcex.json'
+        project_tcex = Path.cwd() / 'tcex.json'
 
-        if tcex_json_path.is_file():
+        if not project_tcex.is_file():
+            # copy fresh from the leaf template in the cache
+            src = cache_dir / template_type / template_name / 'tcex.json'
+            if src.is_file():
+                shutil.copy2(str(src), str(project_tcex))
+        else:
+            # update only the template-managed fields via the existing model
             self.app.tj.model.template_name = template_name
             self.app.tj.model.template_type = template_type
             self.app.tj.write()
-        else:
-            prefix = self.template_to_prefix_map.get(template_type, 'app').upper()
-            data = {
-                'package': {
-                    'app_name': f'{prefix}_-_',
-                    'excludes': [
-                        '.gitignore',
-                        '.pre-commit-config.yaml',
-                        'app.yaml',
-                        'local-*',
-                        'pyproject.toml',
-                        'setup.cfg',
-                    ],
-                    'output_dir': 'target',
-                },
-                'template_name': template_name,
-                'template_type': template_type,
-            }
-            with tcex_json_path.open('w', encoding='utf-8') as fh:
-                json.dump(data, fh, indent=2, sort_keys=True)
-                fh.write('\n')
 
     # ==================================================================
     # Cache Management
@@ -457,7 +449,7 @@ class TemplateCli(CliABC):
 
         merged_manifest: dict = {}
 
-        # files to skip — these are either meta-files or project-managed
+        # files to skip — these are meta-files not intended for the project
         skip_names = {'template.yaml', '.gitignore', 'tcex.json'}
 
         for parent_name in parents:

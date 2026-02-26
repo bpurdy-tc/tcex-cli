@@ -65,7 +65,8 @@ class TestBuildMergedPlaybook:
         assert (merged_playbook / 'playbook_app.py').is_file()
         assert (merged_playbook / 'install.json').is_file()
         assert (merged_playbook / 'run.py').is_file()
-        assert not (merged_playbook / 'tcex.json').is_file()  # tcex.json is project-managed, not synced
+        # tcex.json is skipped during merge (handled separately by _ensure_tcex_json)
+        assert not (merged_playbook / 'tcex.json').exists()
 
     def test_parent_files_inherited(self, merged_playbook: Path):
         """_app_common files (requirements.txt, pyproject.toml, etc.) should be inherited."""
