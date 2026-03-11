@@ -626,10 +626,12 @@ class TemplateCli(CliABC):
                 # in sync with current template — Planner will skip
                 local_manifest[key] = entry
             else:
-                # differs — dummy last_commit forces hash-comparison path
+                # differs — dummy last_commit forces hash-comparison path;
+                # store the template's sha256 (not local) so the planner can
+                # distinguish "user never touched this" from "user modified it"
                 local_manifest[key] = {
                     'last_commit': 'legacy_migrated',
-                    'sha256': local_hash,
+                    'sha256': entry['sha256'],
                     'template_path': entry['template_path'],
                 }
 
