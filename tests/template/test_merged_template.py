@@ -165,7 +165,6 @@ class TestBuildMergedOrganization:
 
 
 class TestBuildMergedThreeLevelChain:
-
     def test_egress_has_files_from_all_levels(self, merged_egress: Path):
         assert (merged_egress / 'requirements.txt').is_file()
         assert (merged_egress / 'pyproject.toml').is_file()

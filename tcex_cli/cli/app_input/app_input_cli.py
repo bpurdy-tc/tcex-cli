@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from tcex_cli.app.config.install_json import InstallJson
@@ -16,12 +17,18 @@ _logger = logging.getLogger(__name__.split('.', maxsplit=1)[0])
 class AppInputCli(CliABC):
     """App Input Handling Module."""
 
-    def __init__(self, include_optional: bool = False):
+    def __init__(self, name: str, description: str, include_optional: bool = False):
         """Initialize instance properties."""
         super().__init__()
 
+        self.name = name
+        self.description = description
         self.include_optional = include_optional
         self.ij = InstallJson()
+
+        # accumulators populated by generate_app_inputs
+        self.inputs: dict = {}
+        self.kvstore: dict = {}
 
     @staticmethod
     def get_sample_values(param: ParamsModel, playbook_datatype: str):
@@ -94,9 +101,6 @@ class AppInputCli(CliABC):
 
     def generate_app_inputs(self):
         """Generate the app_inputs.json file."""
-        kvstore = {}
-        inputs = {}
-
         app_id = '1022'  # static value per instructions
         for param in self.ij.model.params or []:
             Render.panel.info(f'[blue]Processing parameter: {param.name}[/blue]')
@@ -142,7 +146,7 @@ class AppInputCli(CliABC):
                     value = '|'.join(param.valid_values)
                 else:
                     value = 'sampleString'
-                inputs[param.name] = value
+                self.inputs[param.name] = value
 
                 Render.panel.info(
                     f'[green]Added parameter: {param.name} with value: {value}[/green]'
@@ -160,16 +164,48 @@ class AppInputCli(CliABC):
                     variable = f'#App:{app_id}:{param.name}!KeyValueArray'
 
                 sample_values = self.get_sample_values(param, playbook_datatype)
-                kvstore[variable] = sample_values
-                inputs[param.name] = variable
+                self.kvstore[variable] = sample_values
+                self.inputs[param.name] = variable
                 Render.panel.info(
                     f'[green]Added parameter: {param.name} with variable: {variable}[/green]'
                 )
 
-        output = {'stage': {'kvstore': kvstore}, 'inputs': inputs}
+        output = {
+            'description': self.description,
+            'inputs': self.inputs,
+            'stage': {'kvstore': self.kvstore},
+        }
+        self.write_output_file(output)
 
-        # Write to a single file
-        output_file = Path('app_inputs.json')
+    def _slugify_name(self, name: str) -> str:
+        """Return a filesystem-safe slug for the config file name.
+
+        The written file must live strictly directly under ``app_inputs.d/``.
+        """
+        raw = name.strip()
+        # drop a trailing ".json" suffix (case-insensitive)
+        if raw.lower().endswith('.json'):
+            raw = raw[: -len('.json')]
+
+        # lower-case, replace any run of disallowed characters with a single "_"
+        slug = re.sub(r'[^a-z0-9_-]+', '_', raw.lower()).strip('_')
+        # collapse repeated "_"
+        slug = re.sub(r'_+', '_', slug)
+
+        # reject empty or anything that would escape app_inputs.d/
+        if not slug or slug != Path(slug).name:
+            Render.panel.failure(f'Invalid config file name [{name}].')
+        return slug
+
+    def write_output_file(self, output: dict):
+        """Write the output to a JSON file under app_inputs.d/."""
+        slug = self._slugify_name(self.name)
+
+        # ensure the app_inputs.d/ directory exists
+        config_dir = Path('app_inputs.d')
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        output_file = config_dir / f'{slug}.json'
         if output_file.exists():
             overwrite = Render.prompt.input(
                 f'{output_file} already exists. Overwrite? (y/N): ',
@@ -177,11 +213,10 @@ class AppInputCli(CliABC):
                 subtitle='File will be overwritten if you enter "y".',
             )
             # ask user if they want to overwrite the file
-            # overwrite = input(f'{output_file} already exists. Overwrite? (y/N): ').strip().lower()
             if overwrite not in ('y', 'Y', 'yes', 'YES'):
                 Render.panel.failure('Aborted. File not overwritten.')
             output_file.unlink()
 
-        # create the app_inputs.json file
+        # create the app_inputs.d/<slug>.json file
         with output_file.open('w') as f:
             json.dump(output, f, indent=4)

@@ -1,5 +1,6 @@
 """TcEx Framework Module"""
 
+import contextlib
 import json
 import os
 import shutil
@@ -45,6 +46,7 @@ class TemplateCli(CliABC):
         proxy_port,
         proxy_user,
         proxy_pass,
+        authenticate: bool = False,
     ):
         """Initialize instance properties.
 
@@ -52,6 +54,9 @@ class TemplateCli(CliABC):
         planner pipeline (Hasher -> ManifestStore -> Planner).
         """
         super().__init__()
+
+        # gate GitHub auth behind an explicit --authenticate flag
+        self.authenticate = authenticate
 
         # GitHub API configuration
         # Override with TCEX_TEMPLATE_GITHUB_USER env var to use a personal fork
@@ -101,8 +106,15 @@ class TemplateCli(CliABC):
             proxy_pass=self.proxy_pass,
         )
 
-        if self.gh_username is not None and self.gh_password is not None:
-            session.auth = HTTPBasicAuth(self.gh_username, self.gh_password)
+        if self.authenticate:
+            if self.gh_username is not None and self.gh_password is not None:
+                session.auth = HTTPBasicAuth(self.gh_username, self.gh_password)
+            else:
+                Render.panel.warning(
+                    'GitHub authentication was requested (--authenticate) but the '
+                    'GITHUB_USER and/or GITHUB_PAT environment variables are not set. '
+                    'Continuing with unauthenticated requests (60 requests/hour limit).'
+                )
 
         return session
 
@@ -172,6 +184,7 @@ class TemplateCli(CliABC):
         template_type: str | None = None,
         force: bool = False,
         app_builder: bool = False,
+        managed: bool = False,
     ):
         """Update (or initialize) a project with the latest template files.
 
@@ -186,6 +199,10 @@ class TemplateCli(CliABC):
         5. Build an update plan via Planner.build()
         6. Apply the plan via Planner.apply() with user prompts
         7. Copy the merged manifest.json to the project root
+
+        When ``managed`` is set, the run is silent and non-interactive: only
+        template-managed (boilerplate) files are updated, all other files are
+        left untouched, and nothing is deleted.
         """
         # resolve from tcex.json if not provided
         _template_name = template_name or self.app.tj.model.template_name
@@ -232,6 +249,7 @@ class TemplateCli(CliABC):
                 merged_dir,
                 Path.cwd(),
                 force=force,
+                managed_only=managed,
             )
             Render.table.key_value('Plan Summary', plan.summary)
 
@@ -462,6 +480,18 @@ class TemplateCli(CliABC):
                 )
                 continue
 
+            # load this parent's manifest.json solely to source the per-file
+            # ``managed`` flag — last_commit/sha256 are still re-hashed from the
+            # copied file (see below), so stale manifest entries can't leak in.
+            # re-read per parent so a child parent's flags override a parent's.
+            parent_manifest: dict = {}
+            with contextlib.suppress(Exception):
+                parent_manifest = json.loads(
+                    (src_dir / 'manifest.json').read_text(encoding='utf-8')
+                )
+            if not isinstance(parent_manifest, dict):
+                parent_manifest = {}
+
             # copy files from this parent (child overwrites parent)
             # manifest is built purely from copied files — no pre-loading
             # of parent manifests, which can contain stale entries for
@@ -495,10 +525,15 @@ class TemplateCli(CliABC):
                 # parent file, so the manifest must reflect the final content
                 rel_key = str(rel)
                 file_hash = self.hasher.sha256_file(dest)
+                # ``managed`` is sourced from the parent manifest (default False);
+                # last_commit/sha256 stay re-hashed from the copied file. For the
+                # renamed gitignore, rel_key is '.gitignore', which matches the
+                # parent manifest's '.gitignore' entry (managed: true).
                 merged_manifest[rel_key] = {
                     'last_commit': file_hash or '',
                     'sha256': file_hash or '',
                     'template_path': rel_key,
+                    'managed': bool(parent_manifest.get(rel_key, {}).get('managed', False)),
                 }
 
         # write the combined manifest to the merged dir

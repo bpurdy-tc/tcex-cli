@@ -46,6 +46,58 @@ class Render(RenderUtil):
         return TextColumn('{task.description}', table_column=Column(ratio=1))
 
     @classmethod
+    def table_app_inputs_d(cls, items: list[tuple[int, str, str]]):
+        """Render the list of app_inputs.d/ config candidates.
+
+        Args:
+            items: A list of (index, filename, description) tuples.
+        """
+        table = Table(
+            expand=True,
+            border_style='dim',
+            show_edge=False,
+            show_header=True,
+        )
+
+        table.add_column(
+            '#',
+            justify='right',
+            max_width=4,
+            min_width=4,
+            style=cls.accent2,
+            no_wrap=True,
+        )
+        table.add_column(
+            'Config',
+            justify='left',
+            max_width=30,
+            min_width=30,
+            style='dodger_blue2',
+            no_wrap=True,
+        )
+        table.add_column(
+            'Description',
+            justify='left',
+            max_width=66,
+            min_width=66,
+            style='bold',
+        )
+
+        for index, filename, description in items:
+            table.add_row(str(index), filename, description)
+
+        # render panel->table
+        if items:
+            print_(
+                Panel(
+                    table,
+                    border_style='',
+                    title='Available Configs',
+                    title_align=cls.title_align,
+                )
+            )
+
+    @classmethod
     def table_mismatch(
         cls,
         title: str,

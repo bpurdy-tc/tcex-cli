@@ -190,8 +190,7 @@ class DepsCli(CliABC):
             relative_path = requirements_file.relative_to(self.app_path)
             relative_path = f'[{self.accent}]{relative_path}[/{self.accent}]'
             self.output.append(KeyValueModel(key='Lock File Created', value=str(relative_path)))
-            fh.write(contents)
-            fh.write('')
+            fh.write(f'{contents}\n')
 
     def download_deps(self, exe_command: list[str]):
         """Download the dependencies (run pip)."""
@@ -349,25 +348,32 @@ class DepsCli(CliABC):
 
     def requirements_lock_contents(self, deps_dir: Path) -> str:
         """Return the Python packages for the provided directory."""
-        cmd = f'pip freeze --path "{deps_dir}"'
         if self.tool == 'uv':
-            cmd = f'{self.uv_executable} {cmd}'
+            cmd = [self.uv_executable, 'pip', 'freeze', '--path', str(deps_dir)]
+        else:
+            cmd = [str(self.python_executable), '-m', 'pip', 'freeze', '--path', str(deps_dir)]
 
-        self.log.debug(f'event=get-requirements-lock-data, cmd={cmd}')
+        self.log.debug(f'event=get-requirements-lock-data, cmd={" ".join(cmd)}')
         try:
-            output = subprocess.run(  # noqa: PLW1510
-                cmd,
-                shell=True,
-                capture_output=True,  # nosec
-            )
+            # B603 justification: args are program-resolved (uv/python_executable), not shell-parsed
+            output = subprocess.run(cmd, shell=False, capture_output=True, check=False)  # nosec B603
         except Exception:
             self.log.exception('event=pip-freeze')
             Render.panel.failure('Failure: could not get requirements lock data.')
 
-        if output.returncode != 0:
-            self.log.error(f'event=pip-freeze, stderr="{output.stderr}"')
+        contents = '\n'.join(sorted(output.stdout.decode('utf-8').splitlines()))
 
-        return '\n'.join(sorted(output.stdout.decode('utf-8').splitlines()))
+        # hard-fail rather than write an empty lock (never write an empty lock)
+        if output.returncode != 0 or not contents.strip():
+            self.log.error(
+                f'event=pip-freeze, rc={output.returncode}, '
+                f'stderr="{output.stderr.decode("utf-8")}"'
+            )
+            Render.panel.failure(
+                'Failure: dependency freeze produced no packages; requirements.lock not created.'
+            )
+
+        return contents
 
     @property
     def target_python_version(self) -> Version | None:

@@ -59,20 +59,22 @@ This local repo is a **fork**. `origin` points at the fork; `upstream` is the Th
 - The usual "branch before committing on the default branch" convention does **not** apply to this
   fork — commits to `main` are expected (when the operator makes them — see below).
 
-### Commits are the operator's job — Claude never commits
+### Staging & commits are the operator's job — Claude never stages or commits
 
-**Claude Code must NEVER create a git commit.** ALL commits — in the parent repo **and** in every
-submodule — are made by the **human operator**. This is enforced by `enforce_no_commit.sh` (a
-PreToolUse hook) and a `Bash(git commit:*)` deny rule; both block `git commit` in any form
-(`-m`, `-a`, `--amend`, `git -C <submodule> commit`, after `&&`/pipes, …) with no override.
+**Claude Code must NEVER create a git commit, and must NEVER stage changes (`git add`).** ALL staging
+and commits — in the parent repo **and** in every submodule — are done by the **human operator**, who
+reviews the working tree first. `git commit` is enforced by `enforce_no_commit.sh` (a PreToolUse hook)
+and a `Bash(git commit:*)` deny rule; both block `git commit` in any form (`-m`, `-a`, `--amend`,
+`git -C <submodule> commit`, after `&&`/pipes, …) with no override.
 
-Claude's role stops at **preparing** the change:
+Claude's role stops at **preparing** the change and leaving it **unstaged** for human review:
 
-- Make the edits, then `git add` the relevant paths (staging is allowed).
-- Run `git status` / `git diff --cached` to show exactly what is ready.
-- **Report** what is staged and the suggested commit message(s); the operator runs `git commit`.
-- The same applies to submodule changes: stage inside the submodule and describe the two-step
-  commit + pointer bump, but let the operator perform both commits.
+- Make the edits and leave them in the working tree — do **not** `git add`.
+- Run `git status` / `git diff` (unstaged) to show exactly what changed.
+- **Report** what changed and the suggested commit message(s); the operator reviews, runs `git add`,
+  then `git commit`.
+- The same applies to submodule changes: describe the two-step commit + pointer bump, but let the
+  operator stage and perform both commits.
 
 ## Git Submodules
 
@@ -162,7 +164,7 @@ it is allowed, unlike the forbidden `$(git rev-parse …)`, `$(pwd)`, `$(realpat
 > **Read/Write/Edit tools do NOT expand env vars.** For plan paths and "read this file" references,
 > use the `<root>` placeholder or a repo-root-relative path — never `$PROJECT_ROOT` in those contexts.
 
-Three `PreToolUse` hooks (in `.claude/scripts/`) enforce this — treat them as hard rules:
+Three `PreToolUse` hooks (in `.claude/hooks/`) enforce this — treat them as hard rules:
 
 - `enforce_no_dynamic_paths.sh` (Bash) — blocks commands containing path-resolving substitutions:
   `$(git …)`, `$(pwd)`, `$(realpath …)`, `$(readlink …)`, `$(cd … )` (and the backtick forms).
@@ -291,6 +293,7 @@ This project uses an orchestrator + specialist subagents (in `.claude/agents/`).
 | Agent | Use for |
 |---|---|
 | `tcex-orchestrator` | Analyzes the request, gathers context, writes a plan when required, delegates to specialists, then runs the security gate and reports. Does not write code itself. |
+| `tcex-plan-reviewer` | **Plan-time adversarial review gate** (opt-in per task). Invoked by the orchestrator on a freshly drafted plan when the user opts in; returns severity-graded findings (🔴/🟠/🟡) and the orchestrator iterates to convergence before presenting it. Distinct from `python-security-auditor` (implementation-time). |
 | `python-engineer` | **All** updates to the `tcex_cli` codebase under `tcex_cli/` (parent repo **and** submodules): CLI commands, models, framework logic, bug fixes, refactors, type-checker fixes, dependency changes. Not scripts, not tests. |
 | `python-test-engineer` | **All** pytest test cases under `tests/`. Does not modify source. |
 | `python-script-specialist` | **Sole author** of standalone scripts (typer + rich, dry-run/`--commit`). Writes to `.claude/scripts/`. |
@@ -299,7 +302,8 @@ This project uses an orchestrator + specialist subagents (in `.claude/agents/`).
 ## One-Off Scripts (`.claude/scripts/`)
 
 All standalone scripts are authored by `python-script-specialist`. Agent-written helpers live in
-`.claude/scripts/` (alongside the enforcement hooks). A genuine one- or two-line `-c` invocation for
+`.claude/scripts/` (the enforcement hooks live separately in `.claude/hooks/`). A genuine one- or
+two-line `-c` invocation for
 ad-hoc context-gathering is fine and does not need delegation. Python scripts must use the venv's
 absolute `python` path.
 

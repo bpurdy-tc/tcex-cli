@@ -12,7 +12,7 @@ import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 # third-party
 from pydantic import BaseModel, Field
@@ -28,6 +28,7 @@ class FileMeta(TypedDict):
     last_commit: str
     sha256: str
     template_path: str
+    managed: NotRequired[bool]
 
 
 Meta = dict[str, FileMeta]  # key: POSIX-style project-relative path
@@ -205,12 +206,31 @@ class Planner:
         self.hasher = hasher
         self.file_ops = file_ops
 
+    def _classify_managed_key(
+        self, plan: Plan, value: tuple, template_info: FileMeta, project_path: Path
+    ) -> None:
+        """Classify a single template key for a ``managed_only`` (``--managed``) run.
+
+        Only template-managed (boilerplate) files are in scope; the local file
+        is hashed against the template so byte-identical managed files are not
+        rewritten every run.
+        """
+        if not template_info.get('managed'):
+            plan.skip.append(value)
+            return
+        current_hash = self.hasher.sha256_file(project_path)
+        if current_hash == template_info['sha256']:
+            plan.skip.append(value)
+        else:
+            plan.auto_update.append(value)
+
     def build(
         self,
         temp_dest: Path,
         dest: Path,
         file_name: str = 'manifest.json',
         force=False,
+        managed_only: bool = False,
     ) -> Plan:
         """Build an update plan by comparing template and local manifests.
 
@@ -231,6 +251,18 @@ class Planner:
            - If the local file is gone or unchanged from last-known hash,
              auto-remove (safe cleanup).
            - If the user modified the file, prompt before removing.
+
+        ``managed_only`` restricts the plan to template-managed (infrastructure
+        /boilerplate) files for a silent, non-interactive run. In this mode the
+        normal ``last_commit`` / local-manifest diff branches are bypassed:
+
+        * Keys whose template manifest entry is not ``managed`` are skipped
+          (out of scope for ``--managed``).
+        * Managed keys are hash-compared against the template's ``sha256`` —
+          skipped when identical, otherwise auto-updated (so byte-identical
+          managed files are not rewritten every run).
+        * All removed keys are skipped (never appended to ``template_removed``);
+          ``--managed`` never deletes project files.
         """
         template_meta = self.manifest.load_json(temp_dest / file_name)
         local_meta = self.manifest.load_json(dest / file_name)
@@ -244,10 +276,15 @@ class Planner:
         # --- updates and additions ---
         for key in keys_in_template:
             template_info = template_meta[key]
-            local_info = local_meta.get(key)
             value = (key, template_info['template_path'])
 
             project_path = dest / key
+
+            if managed_only:
+                self._classify_managed_key(plan, value, template_info, project_path)
+                continue
+
+            local_info = local_meta.get(key)
 
             if force is True:
                 plan.auto_update.append(value)
@@ -278,6 +315,13 @@ class Planner:
         for key in removed_in_template:
             local_info = local_meta[key]
             value = (key, local_info['template_path'])
+
+            # --managed never deletes project files — skip all removed keys
+            # (do not populate template_removed so apply() can't remove them).
+            if managed_only:
+                plan.skip.append(value)
+                continue
+
             plan.template_removed.append(value)
 
             current_hash = self.hasher.sha256_file(dest / key)
@@ -285,7 +329,7 @@ class Planner:
             if current_hash is None:
                 plan.auto_update.append(value)  # already gone
             elif current_hash == local_info['sha256']:
-                plan.auto_update.append(value)  # unchanged from template — safe to remove
+                plan.auto_update.append(value)  # unchanged — safe to remove
             else:
                 plan.prompt_user.append(value)  # user modified — ask first
 
@@ -305,6 +349,10 @@ class Planner:
         Auto-update files are copied/removed without prompting.
         Prompt-user files ask for confirmation via ``prompt_fn``
         (injected for testability — defaults to ``input()``).
+
+        Behavior for the ``prompt_user`` set:
+        - ``force`` → overwrite/remove without prompting.
+        - otherwise → prompt via ``prompt_fn``.
         """
         auto_set = set(plan.auto_update)
         prompt_set = set(plan.prompt_user)
@@ -318,8 +366,16 @@ class Planner:
             else:
                 self.file_ops.copy_from_template(template_root, template, local_)
 
-        # prompt user: ask before overwriting or removing
-        if prompt_set and not force:
+        if prompt_set and force:
+            # force: overwrite or remove without prompting
+            for local, template in prompt_set:
+                local_ = project_root / local
+                if local in removed_keys:
+                    self.file_ops.remove_file(local_)
+                else:
+                    self.file_ops.copy_from_template(template_root, template, local_)
+        elif prompt_set:
+            # interactive: ask before overwriting or removing
             for local, template in sorted(prompt_set):
                 local_ = project_root / local
                 if local in removed_keys:
@@ -334,10 +390,3 @@ class Planner:
                     )
                     if response == 'y':
                         self.file_ops.copy_from_template(template_root, template, local_)
-        elif prompt_set and force:
-            for local, template in prompt_set:
-                local_ = project_root / local
-                if local in removed_keys:
-                    self.file_ops.remove_file(local_)
-                else:
-                    self.file_ops.copy_from_template(template_root, template, local_)
