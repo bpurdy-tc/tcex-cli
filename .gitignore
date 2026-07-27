@@ -49,6 +49,7 @@ temp
 *.log
 local-*
 tests/reports/*
+tcex-app-templates-2
 
 #-------------------------------------------------
 # Other Nonsense

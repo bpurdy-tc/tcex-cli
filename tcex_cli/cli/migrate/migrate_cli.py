@@ -21,12 +21,20 @@ class MigrateCli(CliABC):
     def __init__(
         self,
         forward_ref: bool,
-        update_code: bool,
+        apply: bool,
+        prompt: bool,
     ):
         """Initialize instance properties."""
         super().__init__()
         self.forward_ref = forward_ref
-        self.update_code = update_code
+        self.apply = apply
+        self.prompt = prompt
+
+        # summary counters
+        self._files_scanned = 0
+        self._changes_proposed = 0
+        self._changes_applied = 0
+        self._files_changed = 0
 
     def _replace_string(self, filename: Path, string: str, replacement: str):
         """Replace string in file."""
@@ -43,28 +51,40 @@ class MigrateCli(CliABC):
                         'New Line': f'{line_.replace(string, replacement)}',
                     },
                 )
-                response = Render.prompt.input(
-                    'Replace line:',
-                    prompt_default=f' (Default: [{self.accent}]yes[/{self.accent}])',
-                )
-                if response in ('', 'y', 'yes'):
-                    line_ = line_.replace(string, replacement)
-                    file_changed = True
+                self._changes_proposed += 1
+
+                # without --apply this is a preview only: no prompt, no change, no write
+                if self.apply is True:
+                    accepted = (
+                        True
+                        if not self.prompt
+                        else Render.prompt.input(
+                            'Replace line:',
+                            prompt_default=f' (Default: [{self.accent}]yes[/{self.accent}])',
+                        )
+                        in ('', 'y', 'yes')
+                    )
+                    if accepted:
+                        line_ = line_.replace(string, replacement)
+                        file_changed = True
+                        self._changes_applied += 1
             new_file.append(line_)
 
-        if file_changed is True:
+        # only write when --apply is set and the file actually changed
+        if self.apply is True and file_changed is True:
             with filename.open(mode='w', encoding='utf-8') as fh:
                 fh.write('\n'.join(new_file) + '\n')
+            self._files_changed += 1
 
     @cached_property
-    def _skip_directories(self):
-        return [
+    def _skip_directories(self) -> set[str]:
+        return {
             '.history',
             '.venv',
             'deps',
             'deps_tests',
             'target',
-        ]
+        }
 
     @cached_property
     def _skip_files(self):
@@ -394,39 +414,50 @@ class MigrateCli(CliABC):
                             'New Line': f'{new_line}',
                         },
                     )
-                    response = Render.prompt.input(
-                        'Replace line:',
-                        prompt_default=f' (Default: [{self.accent}]yes[/{self.accent}])',
-                    )
-                    if response in ('', 'y', 'yes'):
-                        line_ = re.sub(pattern, data['replacement'], line_)
-                        file_changed = True
+                    self._changes_proposed += 1
+
+                    # without --apply this is a preview only: no prompt, no change, no write
+                    if self.apply is True:
+                        accepted = (
+                            True
+                            if not self.prompt
+                            else Render.prompt.input(
+                                'Replace line:',
+                                prompt_default=f' (Default: [{self.accent}]yes[/{self.accent}])',
+                            )
+                            in ('', 'y', 'yes')
+                        )
+                        if accepted:
+                            line_ = re.sub(pattern, data['replacement'], line_)
+                            file_changed = True
+                            self._changes_applied += 1
 
             new_file.append(line_)
 
-        if file_changed is True:
+        # only write when --apply is set and the file actually changed
+        if self.apply is True and file_changed is True:
             with filename.open(mode='w', encoding='utf-8') as fh:
                 fh.write('\n'.join(new_file) + '\n')
+            self._files_changed += 1
 
     def walk_code(self):
         """."""
         for item in Path.cwd().rglob('*.py'):
-            # skip directories
-            parents = item.relative_to(Path.cwd()).parents
-            if len(parents) > 1:
-                parent_name = parents[-2].name
-                if parent_name in self._skip_directories:
-                    continue
+            # skip directories: exclude any path whose directory components include a
+            # skip-directory name or any dot-directory (.git, .venv, .claude, etc.)
+            rel_parts = item.relative_to(Path.cwd()).parts[:-1]  # directory parts only
+            if any(part in self._skip_directories or part.startswith('.') for part in rel_parts):
+                continue
 
             # skip files
             if item.name in self._skip_files:
                 continue
 
+            self._files_scanned += 1
             Render.panel.info(f'FILE: {item}')
 
-            # run simple regex replacements
-            if self.update_code is True:
-                self.run_update_code(item)
+            # run simple regex replacements (writes gated by --apply inside)
+            self.run_update_code(item)
 
             if self.forward_ref is True:
                 with item.open(mode='r', encoding='utf-8') as fh:
@@ -438,3 +469,22 @@ class MigrateCli(CliABC):
                 }
                 parsed_code = ast.parse(code)
                 self.parse_ast_body(item, parsed_code.body, imports)
+
+        # render run summary; text adapts to preview vs apply mode
+        if self.apply is True:
+            summary = (
+                f'Mode: apply (files written)\n'
+                f'Files scanned: {self._files_scanned}\n'
+                f'Changes proposed: {self._changes_proposed}\n'
+                f'Changes applied: {self._changes_applied}\n'
+                f'Files changed: {self._files_changed}'
+            )
+        else:
+            summary = (
+                f'Mode: preview (no files written)\n'
+                f'Files scanned: {self._files_scanned}\n'
+                f'Changes proposed: {self._changes_proposed}\n'
+                f'Run with --apply to write these changes.'
+            )
+
+        Render.panel.info(summary, title='Migrate Summary')

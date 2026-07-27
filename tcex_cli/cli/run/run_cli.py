@@ -1,6 +1,7 @@
 """TcEx Framework Module"""
 
 # standard library
+import json
 import os
 import sys
 from pathlib import Path
@@ -72,12 +73,87 @@ class RunCli(CliABC):
         Render.panel.info(f'{exit_code}', f'[{self.panel_title}]Exit Code[/]')
         sys.exit(exit_code)
 
-    def run(self, config_json: Path, debug: bool = False):
+    @staticmethod
+    def _read_config_description(config_file: Path) -> str:
+        """Return the best-effort description from a config file's raw JSON."""
+        try:
+            data = json.loads(config_file.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return ''
+        if isinstance(data, dict):
+            description = data.get('description')
+            if isinstance(description, str):
+                return description
+        return ''
+
+    def _select_config_from_dir(self, config_dir: Path) -> Path:
+        """Render a menu of app_inputs.d/ candidates and return the selected file."""
+        candidates = sorted(config_dir.glob('*.json'))
+        if not candidates:
+            Render.panel.failure(
+                'No app_inputs.json found. Provide app_inputs.json, pass --config <file>, '
+                'or add a config under app_inputs.d/.'
+            )
+
+        # render the list of available configs (index, filename, description)
+        items = [
+            (i, candidate.stem, self._read_config_description(candidate))
+            for i, candidate in enumerate(candidates, start=1)
+        ]
+        Render.table_app_inputs_d(items)
+
+        # prompt the user to select a config by number
+        choices = [str(i) for i in range(1, len(candidates) + 1)]
+        answer = Render.prompt.ask('Select a config to run', choices=choices, default='1')
+        if not answer:
+            Render.panel.failure('No config selected.')
+
+        selected = candidates[int(answer) - 1]
+        if not selected.is_file():
+            Render.panel.failure(f'Config file not found [{selected}].')
+        return selected
+
+    def resolve_config(self, config_json: Path | None) -> Path:  # noqa: RET503
+        """Resolve the config file to use, applying the precedence order.
+
+        Precedence:
+            1. an explicit ``--config <file>`` (must exist) wins and skips the menu;
+            2. else ``app_inputs.json`` if present;
+            3. else an ``app_inputs.d/`` selection menu (if it holds any ``*.json``);
+            4. else a helpful failure.
+
+        Every returned path is a verified existing file.
+        """
+        # explicit --config wins (including app_inputs.d/<file>.json) and skips the menu
+        if config_json is not None:
+            if not config_json.is_file():
+                Render.panel.failure(f'Config file not found [{config_json}].')
+            return config_json
+
+        # legacy single-config default
+        app_inputs_json = Path('app_inputs.json')
+        if app_inputs_json.is_file():
+            return app_inputs_json
+
+        # multi-config directory
+        config_dir = Path('app_inputs.d')
+        if config_dir.is_dir():
+            return self._select_config_from_dir(config_dir)
+
+        Render.panel.failure(
+            'No app_inputs.json found. Provide app_inputs.json, pass --config <file>, '
+            'or add a config under app_inputs.d/.'
+        )
+
+    def run(self, config_json: Path | None, debug: bool = False):
         """Run the App"""
+        # resolve the config to use (single owner of resolution)
+        resolved = self.resolve_config(config_json)
+
         match self.ij.model.runtime_level.lower():
             case 'apiservice':
                 Render.panel.info('Launching API Service', f'[{self.panel_title}]Running App[/]')
-                launch_app = LaunchServiceApi(config_json)
+                launch_app = LaunchServiceApi(resolved)
                 self._display_api_settings(launch_app.model.inputs)
                 launch_app.setup(debug)
                 exit_code = launch_app.launch()
@@ -86,18 +162,19 @@ class RunCli(CliABC):
                 Render.panel.info(
                     'Launching Feed API Service', f'[{self.panel_title}]Running App[/]'
                 )
-                launch_app = LaunchServiceApi(config_json)
+                launch_app = LaunchServiceApi(resolved)
                 launch_app.setup(debug)
                 exit_code = launch_app.launch()
 
             case 'organization' | 'system':
                 Render.panel.info('Launching Job App', f'[{self.panel_title}]Running App[/]')
-                launch_app = LaunchOrganization(config_json)
+                launch_app = LaunchOrganization(resolved)
                 exit_code = launch_app.launch()
                 launch_app.print_input_data()
 
             case 'playbook':
-                launch_app = LaunchPlaybook(config_json)
+                launch_app = LaunchPlaybook(resolved)
+                launch_app.validate_inputs()
                 launch_app.stage()
                 exit_code = launch_app.launch()
                 launch_app.print_input_data()
@@ -107,7 +184,7 @@ class RunCli(CliABC):
                 Render.panel.info(
                     'Launching Trigger Service', f'[{self.panel_title}]Running App[/]'
                 )
-                launch_app = LaunchServiceCustomTrigger(config_json)
+                launch_app = LaunchServiceCustomTrigger(resolved)
                 launch_app.setup(debug)
                 exit_code = launch_app.launch()
 
@@ -115,7 +192,7 @@ class RunCli(CliABC):
                 Render.panel.info(
                     'Launching Webhook Trigger Service', f'[{self.panel_title}]Running App[/]'
                 )
-                launch_app = LaunchServiceWebhookTrigger(config_json)
+                launch_app = LaunchServiceWebhookTrigger(resolved)
                 self._display_api_settings(launch_app.model.inputs)
                 launch_app.setup(debug)
                 exit_code = launch_app.launch()

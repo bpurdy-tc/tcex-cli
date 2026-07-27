@@ -82,6 +82,7 @@ class PackageCli(CliABC):
             'angular.json',  # angular configuration file
             'app.yaml',  # requirements builder configuration file
             'app_inputs*.json',  # local testing configuration file
+            'app_inputs.d',  # local multi-config directory
             'artifacts',  # pytest in CI/CD
             'assets',  # pytest in BB Pipelines
             'cspell.json',  # cspell configuration file

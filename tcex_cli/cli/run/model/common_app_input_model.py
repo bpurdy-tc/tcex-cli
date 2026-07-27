@@ -20,6 +20,7 @@ class StageModel(BaseModel):
 class CommonAppInputModel(BaseModel):
     """Model Definition"""
 
+    description: str | None = None
     stage: StageModel
     trigger_inputs: list[dict] = []
     inputs: InputsModel

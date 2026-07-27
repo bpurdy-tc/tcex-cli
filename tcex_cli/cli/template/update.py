@@ -37,8 +37,24 @@ def command(
     force: bool = typer.Option(
         default=False, help="Update files from template even if they haven't changed."
     ),
+    managed: bool = typer.Option(
+        False,  # noqa: FBT003
+        '--managed',
+        help=(
+            'Silently update only template-managed (boilerplate) files without '
+            'prompting; all other files are left untouched and nothing is deleted.'
+        ),
+    ),
     branch: str = typer.Option(
         default_branch, help='The git branch of the tcex-app-template repository to use.'
+    ),
+    authenticate: bool = typer.Option(
+        False,  # noqa: FBT003
+        '--authenticate',
+        help=(
+            'Authenticate to GitHub using the GITHUB_USER and GITHUB_PAT environment '
+            'variables (for private template forks or to raise the API rate limit).'
+        ),
     ),
     proxy_host: StrOrNone = typer.Option(None, help='(Advanced) Hostname for the proxy server.'),
     proxy_port: IntOrNone = typer.Option(None, help='(Advanced) Port number for the proxy server.'),
@@ -53,7 +69,13 @@ def command(
     Use --template and --type only for legacy projects where tcex.json is
     missing those values.
 
+    Use --managed for a silent, non-interactive run (e.g. scripting a
+    tcex2->tcex4 migration): only template-managed (boilerplate) files are
+    updated, all other files are left untouched, and nothing is deleted.
+
     Optional environment variables include:\n
+    * GITHUB_USER\n
+    * GITHUB_PAT\n
     * PROXY_HOST\n
     * PROXY_PORT\n
     * PROXY_USER\n
@@ -70,6 +92,7 @@ def command(
         proxy_port,
         proxy_user,
         proxy_pass,
+        authenticate=authenticate,
     )
 
     tj_model = cli.app.tj.model
@@ -92,7 +115,7 @@ def command(
         cli.clear_cache(branch)
 
     try:
-        cli.update(branch, template_name, template_type, force=force)
+        cli.update(branch, template_name, template_type, force=force, managed=managed)
 
         # use the resolved values for the summary
         resolved_name = template_name or tj_model.template_name

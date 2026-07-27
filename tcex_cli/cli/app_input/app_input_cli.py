@@ -3,6 +3,7 @@
 # standard library
 import json
 import logging
+import re
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -20,10 +21,12 @@ _logger = logging.getLogger(__name__.split('.', maxsplit=1)[0])
 class AppInputCli(CliABC):
     """App Input Handling Module."""
 
-    def __init__(self, include_optional: bool = False):
+    def __init__(self, name: str, description: str, include_optional: bool = False):
         """Initialize instance properties."""
         super().__init__()
 
+        self.name = name
+        self.description = description
         self.include_optional = include_optional
         self.ij = InstallJson()
 
@@ -197,13 +200,42 @@ class AppInputCli(CliABC):
                     # get the value and add the staged data
                     self.get_stage_value(param, playbook_data_type, variable=variable)
 
-        output = {'inputs': self.inputs, 'stage': {'kvstore': self.kvstore}}
+        output = {
+            'description': self.description,
+            'inputs': self.inputs,
+            'stage': {'kvstore': self.kvstore},
+        }
         self.write_output_file(output)
 
+    def _slugify_name(self, name: str) -> str:
+        """Return a filesystem-safe slug for the config file name.
+
+        The written file must live strictly directly under ``app_inputs.d/``.
+        """
+        raw = name.strip()
+        # drop a trailing ".json" suffix (case-insensitive)
+        if raw.lower().endswith('.json'):
+            raw = raw[: -len('.json')]
+
+        # lower-case, replace any run of disallowed characters with a single "_"
+        slug = re.sub(r'[^a-z0-9_-]+', '_', raw.lower()).strip('_')
+        # collapse repeated "_"
+        slug = re.sub(r'_+', '_', slug)
+
+        # reject empty or anything that would escape app_inputs.d/
+        if not slug or slug != Path(slug).name:
+            Render.panel.failure(f'Invalid config file name [{name}].')
+        return slug
+
     def write_output_file(self, output: dict):
-        """Write the output to a JSON file."""
-        # Write to a single file
-        output_file = Path('app_inputs.json')
+        """Write the output to a JSON file under app_inputs.d/."""
+        slug = self._slugify_name(self.name)
+
+        # ensure the app_inputs.d/ directory exists
+        config_dir = Path('app_inputs.d')
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        output_file = config_dir / f'{slug}.json'
         if output_file.exists():
             overwrite = Render.prompt.input(
                 f'{output_file} already exists. Overwrite? (y/N): ',
@@ -211,7 +243,6 @@ class AppInputCli(CliABC):
                 subtitle='File will be overwritten if you enter "y".',
             )
             # ask user if they want to overwrite the file
-            # overwrite = input(f'{output_file} already exists. Overwrite? (y/N): ').strip().lower()
             if overwrite not in ('y', 'Y', 'yes', 'YES'):
                 Render.panel.failure('Aborted. File not overwritten.')
             output_file.unlink()

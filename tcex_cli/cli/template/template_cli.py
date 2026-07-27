@@ -48,6 +48,7 @@ class TemplateCli(CliABC):
         proxy_port,
         proxy_user,
         proxy_pass,
+        authenticate: bool = False,
     ):
         """Initialize instance properties.
 
@@ -55,6 +56,9 @@ class TemplateCli(CliABC):
         planner pipeline (Hasher -> ManifestStore -> Planner).
         """
         super().__init__()
+
+        # gate GitHub auth behind an explicit opt-in (--authenticate)
+        self.authenticate = authenticate
 
         # GitHub API configuration
         # Override with TCEX_TEMPLATE_GITHUB_USER env var to use a personal fork
@@ -104,8 +108,15 @@ class TemplateCli(CliABC):
             proxy_pass=self.proxy_pass,
         )
 
-        if self.gh_username is not None and self.gh_password is not None:
-            session.auth = HTTPBasicAuth(self.gh_username, self.gh_password)
+        if self.authenticate:
+            if self.gh_username is not None and self.gh_password is not None:
+                session.auth = HTTPBasicAuth(self.gh_username, self.gh_password)
+            else:
+                Render.panel.warning(
+                    'GitHub authentication was requested (--authenticate) but the '
+                    'GITHUB_USER and/or GITHUB_PAT environment variables are not set. '
+                    'Continuing with unauthenticated requests (60 requests/hour limit).'
+                )
 
         return session
 
@@ -175,6 +186,7 @@ class TemplateCli(CliABC):
         template_type: str | None = None,
         force: bool = False,
         app_builder: bool = False,
+        managed: bool = False,
     ):
         """Update (or initialize) a project with the latest template files.
 
@@ -189,6 +201,10 @@ class TemplateCli(CliABC):
         5. Build an update plan via Planner.build()
         6. Apply the plan via Planner.apply() with user prompts
         7. Copy the merged manifest.json to the project root
+
+        When ``managed`` is set, the run is silent and non-interactive: only
+        template-managed (boilerplate) files are updated and everything else is
+        left untouched (no prompts, no deletions).
         """
         # resolve from tcex.json if not provided
         _template_name = template_name or self.app.tj.model.template_name
@@ -235,6 +251,7 @@ class TemplateCli(CliABC):
                 merged_dir,
                 Path.cwd(),
                 force=force,
+                managed_only=managed,
             )
             Render.table.key_value('Plan Summary', plan.summary)
 
@@ -491,7 +508,8 @@ class TemplateCli(CliABC):
                 # template repos store gitignore without the dot to avoid
                 # GitHub ignoring the file — rename it for the project
                 parts = list(rel.parts)
-                if parts[-1] == 'gitignore':
+                renamed_gitignore = parts[-1] == 'gitignore'
+                if renamed_gitignore:
                     parts[-1] = '.gitignore'
                     rel = Path(*parts)
 
@@ -504,12 +522,27 @@ class TemplateCli(CliABC):
                 # use rel_key for template_path (project-relative), not the
                 # prefixed path from the parent's manifest.
                 rel_key = str(rel)
+
                 parent_entry = parent_manifest.get(rel_key)
-                if parent_entry:
+                if renamed_gitignore:
+                    # the dot-less `gitignore` was renamed to `.gitignore`; the
+                    # parent manifest's `.gitignore` key (if any) describes a
+                    # different, stray file. compute sha256 from the file we
+                    # actually wrote so the manifest matches the content on disk.
+                    merged_manifest[rel_key] = {
+                        'last_commit': (parent_entry['last_commit'] if parent_entry else 'unknown'),
+                        'sha256': self.hasher.sha256_file(dest),
+                        'template_path': rel_key,
+                        'managed': bool(parent_entry.get('managed', False))
+                        if parent_entry
+                        else False,
+                    }
+                elif parent_entry:
                     merged_manifest[rel_key] = {
                         'last_commit': parent_entry['last_commit'],
                         'sha256': parent_entry['sha256'],
                         'template_path': rel_key,
+                        'managed': bool(parent_entry.get('managed', False)),
                     }
                 else:
                     self.log.warning(
