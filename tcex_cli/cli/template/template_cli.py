@@ -62,8 +62,7 @@ class TemplateCli(CliABC):
 
         # GitHub API configuration
         # Override with TCEX_TEMPLATE_GITHUB_USER env var to use a personal fork
-        # _default_github_user = 'ThreatConnect-Inc'
-        _default_github_user = 'bpurdy-tc'
+        _default_github_user = 'ThreatConnect-Inc'
         _github_user = os.getenv('TCEX_TEMPLATE_GITHUB_USER', _default_github_user)
         self.accent = 'dark_orange'
         self.github_user = _github_user
