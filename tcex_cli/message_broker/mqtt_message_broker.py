@@ -4,6 +4,7 @@ import logging
 import ssl
 import time
 from collections.abc import Callable
+from typing import TypedDict
 
 import paho.mqtt.client as mqtt
 
@@ -13,6 +14,13 @@ from tcex_cli.pleb.cached_property import cached_property
 
 # get tcex logger
 _logger: TraceLogger = logging.getLogger(__name__.split('.', maxsplit=1)[0])  # type: ignore
+
+
+class OnMessageCallback(TypedDict):
+    """On message callback registration data."""
+
+    callback: Callable
+    topics: list[str]
 
 
 class MqttMessageBroker:
@@ -46,7 +54,7 @@ class MqttMessageBroker:
         self._on_connect_callbacks: list[Callable] = []
         self._on_disconnect_callbacks: list[Callable] = []
         self._on_log_callbacks: list[Callable] = []
-        self._on_message_callbacks: list[dict[str, Callable | list[str]]] = []
+        self._on_message_callbacks: list[OnMessageCallback] = []
         self._on_publish_callbacks: list[Callable] = []
         self._on_subscribe_callbacks: list[Callable] = []
         self._on_unsubscribe_callbacks: list[Callable] = []

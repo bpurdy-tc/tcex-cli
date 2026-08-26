@@ -10,7 +10,7 @@ class PlaybookModel(BaseModel):
     * Playbook
     """
 
-    tc_playbook_kvstore_context: str = Field(
+    tc_playbook_kvstore_context: str | None = Field(
         None,
         description='The KV Store context for the current App execution.',
         inclusion_reason='runtimeLevel',

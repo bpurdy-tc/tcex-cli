@@ -23,4 +23,5 @@ class GenLayoutJson(CliABC):
             'inputs': self.asy.model.inputs,
             'outputs': self.asy.model.outputs,
         }
-        return LayoutJsonModel(**layout_json_data)
+        # outputs is a list[dict]; Pydantic coerces the dicts into OutputsModel at construction.
+        return LayoutJsonModel(**layout_json_data)  # ty: ignore[invalid-argument-type]

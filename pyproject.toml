@@ -24,27 +24,28 @@ classifiers = [
 
 # List of runtime dependencies
 dependencies = [
-  "arrow>=1.3.0",
-  "black>=25.1.0",
-  "debugpy>=1.8.12",
-  "fakeredis>=2.27.0",
-  "inflection>=0.5.1",
-  "isort>=6.0.0",
-  "jmespath>=1.0.1",
-  "paho-mqtt<3.0.0",
-  "pyaes>=1.6.1",
-  "pydantic>=2.0.0",
-  "pydantic-settings>=2.10.1",
-  "python-dateutil>=2.9.0",
-  "python-dotenv>=1.0.1",
-  "pyyaml>=6.0.2",
-  "redis<5.0.0",
-  "requests>=2.32.3",
-  "rich>=13.9.4",
-  "semantic-version>=2.10.0",
-  "tinydb>=4.8.2",
-  "typer>=0.15.1,<0.24.1",
-  "wrapt>=1.17.2",
+  "arrow~=1.4.0",
+  "black~=26.5.1",
+  "debugpy~=1.8",
+  "fakeredis~=2.36.0",
+  "inflection~=0.5.1",
+  "isort~=8.0.1",
+  "jmespath~=1.1.0",
+  "paho-mqtt~=2.1.0",
+  "pyaes~=1.6.1",
+  "pydantic~=2.0",
+  "pydantic-settings~=2.10",
+  "python-dateutil~=2.9.0.post0",
+  "python-dotenv~=1.0",
+  "pyyaml~=6.0.3",
+  "redis~=8.0.0",
+  "requests~=2.34.2",
+  "rich~=15.0.0",
+  "semantic-version~=2.10.0",
+  "tinydb~=4.8",
+  "typer~=0.26.7",
+  "watchfiles~=1.0",
+  "wrapt~=2.2.1",
 ]
 
 # Short description of the project
@@ -78,18 +79,16 @@ Source = "https://github.com/ThreatConnect-Inc/tcex-cli"
 # Dependency groups for development and testing
 [dependency-groups]
 dev = [
-  "bandit>=1.8.3",
-  "pre-commit>=4.1.0",
-  "pip>=25.2",
-  "pyright>=1.1.394",
-  "pyupgrade>=3.19.1",
-  "ruff>=0.15.2",
+  "bandit>=1.9.4",
+  "pre-commit>=4.6.0",
+  "pyupgrade>=3.21.2",
+  "ruff==0.15.22",
+  "ty==0.0.51",
 ]
 test = [
-  "pytest>=8.3.4",
-  "pytest-cov>=6.0.0",
+  "pytest>=9.0.3",
+  "pytest-cov>=7.1.0",
   "pytest-ordering>=0.6",
-  "python-dotenv>=1.2.1",
 ]
 
 # Dynamic configuration for setuptools
@@ -100,6 +99,10 @@ version = {attr = "tcex_cli.__version__"}
 # Package discovery options for setuptools
 [tool.setuptools.packages.find]
 exclude = ["tests*", "local-*"]
+
+# Non-Python files to include in the installed package
+[tool.setuptools.package-data]
+"tcex_cli.cli.run" = ["dev_dashboard.html"]
 
 #
 # Tool configurations
@@ -114,7 +117,7 @@ commit = false
 # Additional arguments to pass to the git commit command
 commit_args = "--no-verify"
 # The current version of the project
-current_version = "2.0.0-dev0"
+current_version = "2.0.0"
 # The commit message template used when committing version bumps
 message = "Version updated from {current_version} to {new_version}"
 # Regular expression for parsing version strings
@@ -152,32 +155,21 @@ filename = "tcex_cli/__metadata__.py"
 # Configuration for codespell spell checker
 [tool.codespell]
 # https://streetsidesoftware.com/vscode-spell-checker/
-skip = "*.cspell*,*.history,*local,uv.lock"
+skip = "*.cspell*,*.history,*local,uv.lock,*enforce_us_spelling.sh"
 
-# Configuration for pyright type checker
-[tool.pyright]
-# https://github.com/microsoft/pyright/blob/main/docs/configuration.md#sample-pyprojecttoml-file
+# Configuration for ty type checker
+# https://docs.astral.sh/ty/reference/configuration/
+[tool.ty.environment]
+python-platform = "linux"
+python-version = "3.11"
+
+[tool.ty.src]
 exclude = [
   "**/.history",
   "**/__pycache__",
   "**/local-*",
-  "tcex/api/tc/v2",
   "tests",
 ]
-extraPaths = [
-  ".venv/lib/python3.11/site-packages",
-]
-pythonPlatform = "Linux"
-pythonVersion = "3.11"
-reportArgumentType = false
-reportAttributeAccessIssue = false
-reportCallIssue = false
-reportIncompatibleMethodOverride = false
-reportIncompatibleVariableOverride = false
-reportOptionalMemberAccess = false
-reportOptionalSubscript = false
-reportPrivateImportUsage = false
-reportReturnType = false
 
 # Configuration for pytest test runner
 [tool.pytest.ini_options]
@@ -244,6 +236,7 @@ ignore = [
   "TC003", # Move standard library import ... into a type-checking block
   "TC006", # Checks for unquoted type expressions in typing.cast() calls.
   "TID252", # Prefer absolute imports over relative imports from parent modules
+  "UP045", # Use `X | None` for type annotations (typer does not yet support PEP 604)
 ]
 # control enabled plugins
 select = [

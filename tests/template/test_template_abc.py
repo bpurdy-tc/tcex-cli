@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 # third-party
 import pytest
+from requests.auth import HTTPBasicAuth
 
 # first-party
 from tcex_cli.cli.template.template_cli import TemplateCli
@@ -20,9 +21,7 @@ def cli(tmp_path):
     """Return a bare TemplateCli instance with tmp_path as cli_out_path."""
     tcex_dir = tmp_path / '.tcex'
     tcex_dir.mkdir(parents=True, exist_ok=True)
-    inst = TemplateCli(
-        proxy_host=None, proxy_port=None, proxy_user=None, proxy_pass=None
-    )
+    inst = TemplateCli(proxy_host=None, proxy_port=None, proxy_user=None, proxy_pass=None)
     inst.__dict__['cli_out_path'] = tcex_dir
     return inst
 
@@ -39,7 +38,6 @@ class CacheHelper:
 # Cache directory naming
 # ------------------------------------------------------------------
 class TestCacheDir:
-
     def test_path_format(self, cli):
         result = cli._cache_dir('v2')
         assert result == cli.cli_out_path / 'templates' / 'templates-v2'
@@ -117,7 +115,6 @@ class TestEnsureCache:
 # Clear cache
 # ------------------------------------------------------------------
 class TestClearCache:
-
     def test_removes_directory(self, cli):
         cache_dir = CacheHelper.create_cache_dir(cli)
         (cache_dir / 'some_file.txt').write_text('data')
@@ -228,3 +225,49 @@ class TestResolveTemplateParents:
         cache_dir = template_cli._cache_dir('v2')
         result = template_cli.resolve_template_parents(cache_dir, 'egress', 'organization')
         assert result.count('_app_common') == 1
+
+
+# ------------------------------------------------------------------
+# Session auth gating (--authenticate flag)
+# ------------------------------------------------------------------
+class TestSessionAuth:
+    """Tests for the GitHub auth gating in the session cached_property.
+
+    Auth is applied only when self.authenticate is True AND both
+    gh_username and gh_password are set. Env (GITHUB_USER / GITHUB_PAT)
+    is read in __init__ and session is a cached_property, so we set the
+    attributes directly on the instance before first accessing .session.
+    """
+
+    @staticmethod
+    def test_authenticate_false_with_creds_applies_no_auth(cli):
+        """authenticate=False + both creds present -> no auth applied."""
+        cli.authenticate = False
+        cli.gh_username = 'user'
+        cli.gh_password = 'pat'
+
+        assert cli.session.auth is None
+
+    @staticmethod
+    def test_authenticate_true_with_creds_applies_basic_auth(cli):
+        """authenticate=True + both creds present -> HTTPBasicAuth applied."""
+        cli.authenticate = True
+        cli.gh_username = 'user'
+        cli.gh_password = 'pat'
+
+        auth = cli.session.auth
+        assert isinstance(auth, HTTPBasicAuth)
+        assert auth.username == 'user'
+        assert auth.password == 'pat'
+
+    @staticmethod
+    def test_authenticate_true_without_creds_warns_and_skips_auth(cli):
+        """authenticate=True + creds missing -> no auth and a warning is rendered."""
+        cli.authenticate = True
+        cli.gh_username = None
+        cli.gh_password = None
+
+        target = 'tcex_cli.cli.template.template_cli.Render.panel.warning'
+        with patch(target) as mock_warning:
+            assert cli.session.auth is None
+            mock_warning.assert_called_once()

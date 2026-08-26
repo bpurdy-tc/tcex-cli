@@ -65,6 +65,10 @@ class TestTcexCliDeps:
         assert result.exit_code == 0, result.output
         assert (tmp_path / 'app_std' / 'deps' / 'tcex').is_dir(), result.output
 
+        lock = tmp_path / 'app_std' / 'requirements.lock'
+        assert lock.is_file(), result.output
+        assert lock.read_text(encoding='utf-8').strip() != '', result.output
+
     def test_tcex_deps_proxy_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
     ):
@@ -90,6 +94,10 @@ class TestTcexCliDeps:
         assert result.exit_code == 0, result.output
         assert (tmp_path / 'app_std' / 'deps' / 'tcex').is_dir(), result.output
 
+        lock = tmp_path / 'app_std' / 'requirements.lock'
+        assert lock.is_file(), result.output
+        assert lock.read_text(encoding='utf-8').strip() != '', result.output
+
     def test_tcex_deps_proxy_explicit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
     ):
@@ -111,8 +119,15 @@ class TestTcexCliDeps:
 
         result = self._run_command(command, 'app_proxy', tmp_path, request, monkeypatch)
         assert result.exit_code == 0, result.output
-        test = list(tmp_path.iterdir())
         assert (tmp_path / 'app_proxy' / 'deps' / 'tcex').is_dir(), result.output
+
+        lock = tmp_path / 'app_proxy' / 'requirements.lock'
+        assert lock.is_file(), result.output
+        lock_text = lock.read_text(encoding='utf-8')
+        assert lock_text.strip() != '', result.output
+        assert 'tcex' in lock_text.lower(), result.output
+        assert lock_text.endswith('\n'), result.output
+        assert not lock_text.endswith('\n\n'), result.output
 
         # iterate over command output for validations
         for line in result.stdout.split('\n'):

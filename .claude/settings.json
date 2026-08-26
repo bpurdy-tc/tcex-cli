@@ -1,0 +1,75 @@
+{
+  "agent": "tcex-orchestrator",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": ".claude/hooks/enforce_no_dynamic_paths.sh",
+            "type": "command"
+          },
+          {
+            "command": ".claude/hooks/enforce_pinned_paths.sh",
+            "type": "command"
+          },
+          {
+            "command": ".claude/hooks/enforce_no_branch_change.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": ".claude/hooks/enforce_us_spelling.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|NotebookEdit"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [],
+    "ask": [],
+    "deny": [
+      "Bash(git am:*)",
+      "Bash(git apply:*)",
+      "Bash(git branch -d:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git branch -m:*)",
+      "Bash(git branch -M:*)",
+      "Bash(git checkout:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git clean:*)",
+      "Bash(git commit:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(git gc:*)",
+      "Bash(git merge:*)",
+      "Bash(git mv:*)",
+      "Bash(git prune:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reflog expire:*)",
+      "Bash(git reflog delete:*)",
+      "Bash(git reset:*)",
+      "Bash(git restore:*)",
+      "Bash(git revert:*)",
+      "Bash(git rm:*)",
+      "Bash(git stash:*)",
+      "Bash(git submodule deinit:*)",
+      "Bash(git submodule update:*)",
+      "Bash(git switch:*)",
+      "Bash(git symbolic-ref:*)",
+      "Bash(git tag -d:*)",
+      "Bash(git tag -D:*)",
+      "Bash(git update-ref:*)",
+      "Bash(git worktree add:*)",
+      "Bash(git worktree remove:*)",
+      "Bash(git worktree prune:*)"
+    ]
+  }
+}

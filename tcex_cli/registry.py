@@ -2,6 +2,7 @@
 
 import functools
 from collections.abc import Callable, Container
+from types import FunctionType, MethodType
 from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ class Registry(Container):
         """
         self._add(type_or_name, value)
 
-    def add_method(self, method: Callable):
+    def add_method(self, method: FunctionType | MethodType):
         """Add an instance method to the registry.
 
         Args:

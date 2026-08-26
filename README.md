@@ -29,7 +29,7 @@ The TcEx CLI package provides functionality for creating ThreatConnect Apps and 
  * bandit (https://pypi.org/project/bandit/)
  * pre-commit (https://pypi.org/project/pre-commit/)
  * pydocstyle (https://pypi.org/project/pydocstyle/)
- * pyright (https://pypi.org/project/pyright/)
+ * ty (https://pypi.org/project/ty/)
  * pytest (https://pypi.org/project/pytest/)
  * pytest-cov (https://pypi.org/project/pytest-cov/)
  * pyupgrade (https://pypi.org/project/pyupgrade/)

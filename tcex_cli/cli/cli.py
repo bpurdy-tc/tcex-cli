@@ -31,7 +31,7 @@ def add_test_command():
         # update system path
         update_system_path()
 
-        from tcex_app_testing.cli.cli import app as app_test  # type: ignore
+        from tcex_app_testing.cli.cli import app as app_test  # type: ignore # noqa: PLC0415
 
         app.add_typer(
             app_test,
@@ -62,7 +62,7 @@ def version_callback(
         # update system path
         update_system_path()
 
-        version_data = {}
+        version_data: dict[str, str | None] = {}
         # display the tcex version
         with contextlib.suppress(ImportError):
             version_data['TcEx'] = get_version('tcex')

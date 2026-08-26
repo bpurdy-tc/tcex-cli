@@ -21,6 +21,14 @@ def command(
     branch: str = typer.Option(
         default_branch, help='The git branch of the tcex-app-template repository to use.'
     ),
+    authenticate: bool = typer.Option(
+        False,  # noqa: FBT003
+        '--authenticate',
+        help=(
+            'Authenticate to GitHub using the GITHUB_USER and GITHUB_PAT environment '
+            'variables (for private template forks or to raise the API rate limit).'
+        ),
+    ),
     proxy_host: StrOrNone = typer.Option(None, help='(Advanced) Hostname for the proxy server.'),
     proxy_port: IntOrNone = typer.Option(None, help='(Advanced) Port number for the proxy server.'),
     proxy_user: StrOrNone = typer.Option(None, help='(Advanced) Username for the proxy server.'),
@@ -33,6 +41,8 @@ def command(
     file will also be updated with new values.
 
     Optional environment variables include:\n
+    * GITHUB_USER\n
+    * GITHUB_PAT\n
     * PROXY_HOST\n
     * PROXY_PORT\n
     * PROXY_USER\n
@@ -43,6 +53,7 @@ def command(
         proxy_port,
         proxy_user,
         proxy_pass,
+        authenticate=authenticate,
     )
     try:
         cli.list_(branch, template_type)

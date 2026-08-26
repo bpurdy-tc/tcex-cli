@@ -249,9 +249,12 @@ class GenAppInput(CliABC):
                     #     self.field_type_modules.add(field_type)
 
         # append DEFAULT_TC_ACTION after type comparison so it applies
-        # regardless of whether the calculated or current type was used
+        # regardless of whether the calculated or current type was used. the
+        # ty ignore is required because DEFAULT_TC_ACTION is typed as the
+        # install.json default (None | Any), which is not assignable to the
+        # declared field type.
         if input_data.name == 'tc_action' and '= DEFAULT_TC_ACTION' not in type_:
-            type_ += ' = DEFAULT_TC_ACTION'
+            type_ += ' = DEFAULT_TC_ACTION  # ty: ignore[invalid-assignment]'
 
         return type_
 

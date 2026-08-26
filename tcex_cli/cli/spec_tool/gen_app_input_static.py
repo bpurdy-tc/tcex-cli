@@ -103,9 +103,6 @@ class GenAppInputStatic:
         # defined imports
         _imports = ['"""App Inputs"""']
 
-        # add pyright ignore for field_type
-        _imports.append('# pyright: reportGeneralTypeIssues=false\n')
-
         # add typing imports
         if typing_modules:
             _imports.append(f'from typing import {typing_modules_}')
@@ -275,7 +272,10 @@ class GenAppInputStatic:
             f'''{self.i2}"""Return action model map."""''',
             f"""{self.i2}_action_model_map = {cmm}""",
             f"""{self.i2}tc_action_key = tc_action.lower().replace(' ', '_')""",
-            f"""{self.i2}return _action_model_map.get(tc_action_key)""",
+            (
+                f"""{self.i2}return _action_model_map.get("""
+                """tc_action_key)  # ty: ignore[invalid-return-type]"""
+            ),
             '',
         ]
 
