@@ -60,7 +60,6 @@ pygrep
 Pylint
 pynput
 pyproject
-pyright
 pytest
 pythonhosted
 pyupgrade

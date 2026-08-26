@@ -1,10 +1,9 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-ast
-      - id: check-byte-order-marker
       - id: check-builtin-literals
       - id: check-case-conflict
       - id: check-docstring-first
@@ -20,6 +19,7 @@ repos:
       - id: detect-private-key
       - id: double-quote-string-fixer
       - id: end-of-file-fixer
+      - id: fix-byte-order-marker
       - id: mixed-line-ending
       - id: pretty-format-json
         args:
@@ -27,7 +27,7 @@ repos:
       - id: requirements-txt-fixer
       - id: trailing-whitespace
   - repo: https://github.com/pycqa/bandit
-    rev: 1.8.3
+    rev: 1.9.4
     hooks:
       - id: bandit
         exclude: |
@@ -35,7 +35,7 @@ repos:
               ^tests/
           )
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
+    rev: v2.4.2
     hooks:
       - id: codespell
   - repo: https://github.com/pre-commit/mirrors-isort
@@ -43,59 +43,49 @@ repos:
     hooks:
       - id: isort
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
         args:
           - --py311-plus
+  - repo: https://github.com/google/osv-scanner/
+    rev: v2.3.8
+    hooks:
+      - id: osv-scanner
+        args:
+          - --lockfile
+          - uv.lock
+  # ty, ruff, and ruff-format each run once over the whole project. The tools
+  # discover and descend into the nested git submodules themselves (applying each
+  # submodule's own pyproject.toml), so no separate per-submodule hooks are needed.
+  # `types_or: [..., directory]` makes a hook fire on a changed submodule pointer
+  # as well as on changed Python files; `pass_filenames: false` lets each tool
+  # scan the tree using its own configuration. Tool versions come from uv.lock.
   - repo: local
     hooks:
-      - id: pyright
-        entry: pyright
+      - id: ty
+        entry: ty check
         language: system
-        name: pyright
-        types:
-          - python
-  - repo: local
-    hooks:
-      - id: pyright-submodules
-        entry: pyright
-        language: system
-        name: pyright-submodules
-        # pre-commit types_or and types with multiple values don't work for submodules
-        types:
-          - directory
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.7
-    hooks:
-      - id: ruff-format
+        name: ty
+        pass_filenames: false
         types_or:
           - python
-          - pyi
+          - directory
       - id: ruff
-        args:
-          - --fix
+        entry: ruff check --fix
+        language: system
+        name: ruff
+        pass_filenames: false
         types_or:
           - python
           - pyi
-  - repo: local
-    hooks:
-      - id: ruff-format-submodules
-        entry: ruff
-        args:
-          - format
-        language: system
-        name: ruff-format-submodules
-        # pre-commit types_or and types with multiple values don't work for submodules
-        types:
           - directory
-      - id: ruff-submodules
-        entry: ruff
-        args:
-          - check
-          - --fix
+      - id: ruff-format
+        entry: ruff format
         language: system
-        name: ruff-submodules
-        # pre-commit types_or and types with multiple values don't work for submodules
-        types:
+        name: ruff-format
+        pass_filenames: false
+        types_or:
+          - python
+          - pyi
           - directory

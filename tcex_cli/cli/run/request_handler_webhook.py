@@ -40,7 +40,7 @@ class RequestHandlerWebhook(http.server.BaseHTTPRequestHandler):
         content_length = int(self.headers.get('content-length', 0))
         if content_length:
             body = self.rfile.read(content_length)
-            self.server.redis_client.hset(request_key, 'request.body', body)  # type: ignore
+            self.server.redis_client.hset(request_key, 'request.body', body)
 
         return {
             'appId': 95,
@@ -103,18 +103,18 @@ class RequestHandlerWebhook(http.server.BaseHTTPRequestHandler):
 
         return  # noqa: PLR1711
 
-    def do_DELETE(self):  # noqa: N802
+    def do_DELETE(self):
         """Handle DELETE method."""
         return self.call_service('DELETE')
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         """Handle GET method."""
         return self.call_service('GET')
 
-    def do_PATCH(self):  # noqa: N802
+    def do_PATCH(self):
         """Handle PATCH method."""
         return self.call_service('PATCH')
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         """Handle POST method."""
         return self.call_service('POST')

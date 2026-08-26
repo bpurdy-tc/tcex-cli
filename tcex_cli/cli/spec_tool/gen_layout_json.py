@@ -1,5 +1,8 @@
 """TcEx Framework Module"""
 
+# standard library
+from typing import Any
+
 # first-party
 from tcex_cli.app.config import AppSpecYml
 from tcex_cli.app.config.model import LayoutJsonModel
@@ -20,7 +23,7 @@ class GenLayoutJson(CliABC):
     def generate(self):
         """Generate the layout.json file data."""
 
-        layout_json_data = {
+        layout_json_data: dict[str, Any] = {
             'inputs': self.asy.model.inputs,
             'outputs': self.asy.model.outputs,
         }

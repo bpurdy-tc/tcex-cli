@@ -12,8 +12,8 @@ from tcex_cli.render.render import Render
 
 # typer does not yet support PEP 604, but pyupgrade will enforce
 # PEP 604. this is a temporary workaround until support is added.
-IntOrNone = Optional[int]  # noqa: UP007
-StrOrNone = Optional[str]  # noqa: UP007
+IntOrNone = Optional[int]
+StrOrNone = Optional[str]
 
 
 def command(

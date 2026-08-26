@@ -105,9 +105,6 @@ class GenAppInputStatic:
         # defined imports
         _imports = ['"""App Inputs"""']
 
-        # add pyright ignore for field_type
-        _imports.append('# pyright: reportGeneralTypeIssues=false\n')
-
         # add typing imports
         if typing_modules:
             _imports.append(f'from typing import {typing_modules_}')

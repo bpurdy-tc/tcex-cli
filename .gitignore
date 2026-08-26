@@ -38,11 +38,18 @@ temp
 .vscode
 
 #-------------------------------------------------
+# Claude Exclusions
+#-------------------------------------------------
+.claude/plans/*
+.claude/settings.local.json
+
+#-------------------------------------------------
 # Module Specific Exclusions
 #-------------------------------------------------
 *.log
 local-*
 tests/reports/*
+tcex-app-templates-2
 
 #-------------------------------------------------
 # Other Nonsense

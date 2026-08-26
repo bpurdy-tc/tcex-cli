@@ -2,6 +2,7 @@
 
 # standard library
 from importlib.metadata import version
+from typing import Any
 
 # first-party
 from tcex_cli.app.config import AppSpecYml
@@ -36,7 +37,7 @@ class GenInstallJson(CliABC):
                 'deprecatesApps': self.asy.model.deprecates_apps or [],
                 'displayName': self.asy.model.display_name,
                 'features': self.asy.model.features,
-                'labels': self.asy.model.labels or [],
+                'labels': sorted([lbl.lower() for lbl in (self.asy.model.labels or [])]),
                 'languageVersion': self.asy.model.language_version,
                 'listDelimiter': self.asy.model.list_delimiter,
                 'minServerVersion': str(self.asy.model.min_server_version),
@@ -92,11 +93,11 @@ class GenInstallJson(CliABC):
             if _repeating_minutes:
                 install_json_data['repeatingMinutes'] = _repeating_minutes
 
-    def _add_type_playbook_fields(self, install_json_data: dict):
+    def _add_type_playbook_fields(self, install_json_data: dict[str, Any]):
         """Add field that apply to ALL App types."""
         if self.asy.model.is_playbook_app or self.asy.model.is_trigger_app:
             install_json_data['allowRunAsUser'] = self.asy.model.allow_run_as_user
-            install_json_data['playbook'] = {
+            playbook_data: dict[str, Any] = {
                 'outputPrefix': self.asy.model.output_prefix,
                 'outputVariables': [
                     ov.dict(by_alias=True) for ov in self.asy.model.output_variables
@@ -108,9 +109,8 @@ class GenInstallJson(CliABC):
                 and self.asy.model.playbook.retry
                 and self.asy.model.playbook.retry.allowed is True
             ):
-                install_json_data['playbook']['retry'] = self.asy.model.playbook.retry.dict(
-                    by_alias=True
-                )
+                playbook_data['retry'] = self.asy.model.playbook.retry.dict(by_alias=True)
+            install_json_data['playbook'] = playbook_data
 
     @property
     def _note_per_action(self):
@@ -124,7 +124,7 @@ class GenInstallJson(CliABC):
     def generate(self):
         """Generate the install.json file data."""
         # all keys added to dict must be in camelCase
-        install_json_data = {}
+        install_json_data: dict[str, Any] = {}
 
         # add standard fields
         self._add_standard_fields(install_json_data)

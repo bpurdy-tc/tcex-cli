@@ -463,6 +463,7 @@ class GenAppInput(CliABC):
             (
                 f"""{self.i1}_entity_input = validator({_entity_input}, """
                 """allow_reuse=True)(entity_input(only_field='value'))"""
+                """  # ty: ignore[invalid-argument-type]"""
             ),
         ]
 

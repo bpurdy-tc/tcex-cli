@@ -175,26 +175,26 @@ class RequestHandlerApi(http.server.BaseHTTPRequestHandler):
 
         return  # noqa: PLR1711
 
-    def do_DELETE(self):  # noqa: N802
+    def do_DELETE(self):
         """Handle DELETE method."""
         return self.call_service('DELETE')
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         """Handle GET method."""
         return self.call_service('GET')
 
-    def do_OPTIONS(self):  # noqa: N802
+    def do_OPTIONS(self):
         """Handle OPTIONS method."""
         return self.call_service('OPTIONS')
 
-    def do_PATCH(self):  # noqa: N802
+    def do_PATCH(self):
         """Handle PATCH method."""
         return self.call_service('PATCH')
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         """Handle POST method."""
         return self.call_service('POST')
 
-    def do_PUT(self):  # noqa: N802
+    def do_PUT(self):
         """Handle POST method."""
         return self.call_service('PUT')

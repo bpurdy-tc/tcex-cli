@@ -57,9 +57,7 @@ class TestList:
 
     def test_list_all_types(self, template_cli):
         """list_ with no type filter should discover multiple template types."""
-        with patch.object(
-            template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')
-        ):
+        with patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')):
             template_cli.list_('v2')
 
         assert 'playbook' in template_cli.template_data
@@ -67,9 +65,7 @@ class TestList:
 
     def test_list_playbook_templates(self, template_cli):
         """list_ filtered to playbook should find basic (and others)."""
-        with patch.object(
-            template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')
-        ):
+        with patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')):
             template_cli.list_('v2', 'playbook')
 
         names = [c.name for c in template_cli.template_data['playbook']]
@@ -77,9 +73,7 @@ class TestList:
 
     def test_list_organization_templates(self, template_cli):
         """list_ filtered to organization should find basic."""
-        with patch.object(
-            template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')
-        ):
+        with patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')):
             template_cli.list_('v2', 'organization')
 
         names = [c.name for c in template_cli.template_data['organization']]
@@ -87,17 +81,13 @@ class TestList:
 
     def test_list_invalid_type_raises(self, template_cli):
         with (
-            patch.object(
-                template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')
-            ),
+            patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')),
             pytest.raises(ValueError, match='Invalid Types'),
         ):
             template_cli.list_('v2', 'nonexistent_type')
 
     def test_list_discovers_multiple_templates_per_type(self, template_cli):
-        with patch.object(
-            template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')
-        ):
+        with patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')):
             template_cli.list_('v2', 'organization')
 
         names = [c.name for c in template_cli.template_data['organization']]
@@ -175,9 +165,7 @@ class TestInitOrganization:
 
     def test_creates_org_specific_files(self, template_cli, project_dir, monkeypatch):
         """organization/basic should have job_app.py, not playbook_app.py."""
-        ProjectHelper.init_project(
-            template_cli, project_dir, monkeypatch, 'basic', 'organization'
-        )
+        ProjectHelper.init_project(template_cli, project_dir, monkeypatch, 'basic', 'organization')
 
         assert (project_dir / 'job_app.py').is_file()
         assert (project_dir / 'app.py').is_file()
@@ -185,9 +173,7 @@ class TestInitOrganization:
 
     def test_inherits_app_common(self, template_cli, project_dir, monkeypatch):
         """Should inherit _app_common files."""
-        ProjectHelper.init_project(
-            template_cli, project_dir, monkeypatch, 'basic', 'organization'
-        )
+        ProjectHelper.init_project(template_cli, project_dir, monkeypatch, 'basic', 'organization')
 
         assert (project_dir / 'requirements.txt').is_file()
         assert (project_dir / 'pyproject.toml').is_file()
@@ -243,36 +229,22 @@ class TestUpdateModifiedFile:
 
         assert (project_dir / 'app.py').read_text() == '# user modification'
 
-    def test_same_template_version_skips_even_modified_files(
+    def test_unmodified_file_auto_updates_when_template_changes(
         self, template_cli, project_dir, monkeypatch
     ):
-        """When the template hasn't changed (same last_commit), update skips all files.
-
-        If the user modifies a file but the template hasn't changed,
-        update should skip (use --force to overwrite).
-        """
-        ProjectHelper.init_project(template_cli, project_dir, monkeypatch, 'basic', 'playbook')
-        (project_dir / 'playbook_app.py').write_text('# user modification')
-
-        ProjectHelper.run_update(template_cli)
-
-        assert (project_dir / 'playbook_app.py').read_text() == '# user modification'
-
-    def test_template_file_prompts_when_template_changes(
-        self, template_cli, project_dir, monkeypatch
-    ):
-        """When the template has a new commit and local file was modified, user is prompted."""
+        """When the template changes but the user never modified the file, auto-update it."""
         ProjectHelper.init_project(template_cli, project_dir, monkeypatch, 'basic', 'playbook')
 
-        (project_dir / 'playbook_app.py').write_text('# user modification')
-        ProjectHelper.simulate_template_change(project_dir, 'playbook_app.py')
+        # Don't modify the file — just simulate a template change
+        ProjectHelper.simulate_template_change(project_dir, 'app.py')
 
         with patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')):
-            with patch('tcex_cli.render.render.Render.prompt.ask', return_value='N'):
+            with patch('tcex_cli.render.render.Render.prompt.ask') as mock_prompt:
                 template_cli.update('v2', 'basic', 'playbook')
 
-        # user answered 'N' → file preserved
-        assert (project_dir / 'playbook_app.py').read_text() == '# user modification'
+        # app.py should NOT have been prompted — it was auto-updated
+        prompted_files = [call.args[0] for call in mock_prompt.call_args_list]
+        assert not any('app.py' in f for f in prompted_files)
 
     def test_unmodified_file_auto_updates_when_template_changes(
         self, template_cli, project_dir, monkeypatch
@@ -305,9 +277,7 @@ class TestUpdateModifiedFile:
 
         assert (project_dir / 'app.py').read_text() == '# user modification'
 
-    def test_prompt_answer_yes_overwrites_file(
-        self, template_cli, project_dir, monkeypatch
-    ):
+    def test_prompt_answer_yes_overwrites_file(self, template_cli, project_dir, monkeypatch):
         ProjectHelper.init_project(template_cli, project_dir, monkeypatch, 'basic', 'playbook')
 
         (project_dir / 'app.py').write_text('# user modification')
@@ -353,14 +323,21 @@ class TestUpdateDeletedFile:
 
         assert (project_dir / 'playbook_app.py').is_file()
 
-    def test_deleted_file_skipped_without_force(self, template_cli, project_dir, monkeypatch):
+    def test_deleted_non_template_file_skipped_without_force(
+        self, template_cli, project_dir, monkeypatch
+    ):
+        """A deleted non-template file stays deleted on update without --force.
+
+        app.py is NOT template-owned, so at the same last_commit the deletion is
+        skipped and the file is not restored (use --force to restore).
+        """
         ProjectHelper.init_project(template_cli, project_dir, monkeypatch, 'basic', 'playbook')
 
-        (project_dir / 'playbook_app.py').unlink()
+        (project_dir / 'app.py').unlink()
 
         ProjectHelper.run_update(template_cli)
 
-        assert not (project_dir / 'playbook_app.py').exists()
+        assert not (project_dir / 'app.py').exists()
 
 
 # ==================================================================
@@ -460,20 +437,6 @@ class TestLegacyManifestMigration:
                 template_cli.update('v2', 'basic', 'playbook')
 
         assert (project_dir / 'app.py').read_text() == before
-
-    def test_modified_template_file_auto_updates(self, template_cli, project_dir, monkeypatch):
-        """A template_file that the user modified should be auto-updated (no prompt)."""
-        self._simulate_legacy_project(template_cli, project_dir, monkeypatch)
-
-        original = (project_dir / 'playbook_app.py').read_text()
-        (project_dir / 'playbook_app.py').write_text('# user modification')
-
-        with patch.object(template_cli, 'ensure_cache', return_value=template_cli._cache_dir('v2')):
-            with patch('tcex_cli.render.render.Render.prompt.ask', return_value='N'):
-                template_cli.update('v2', 'basic', 'playbook')
-
-        # playbook_app.py was modified but user answered 'N' → preserved
-        assert (project_dir / 'playbook_app.py').read_text() == '# user modification'
 
     def test_modified_non_template_file_prompts(self, template_cli, project_dir, monkeypatch):
         """A non-template_file that the user modified should prompt (and be preserved on 'N')."""

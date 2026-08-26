@@ -219,7 +219,7 @@ class ValidateCli(CliABC):
                     )
                     try:
                         self.app.permutation.db_conn.execute(display_query.replace('"', ''))
-                    except sqlite3.Error:  # type: ignore
+                    except sqlite3.Error:
                         self.validation_data.errors.append(
                             'Layouts input.parameters[].display validations failed '
                             f'("{p.display}" query is an invalid statement).'
@@ -256,7 +256,7 @@ class ValidateCli(CliABC):
                 )
                 try:
                     self.app.permutation.db_conn.execute(display_query.replace('"', ''))
-                except sqlite3.Error:  # type: ignore
+                except sqlite3.Error:
                     self.validation_data.errors.append(
                         f"""Layouts outputs.display validations failed ("{o.display}" """
                         f"""query is an invalid statement)."""

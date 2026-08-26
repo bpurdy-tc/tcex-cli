@@ -21,7 +21,7 @@ KEY_VALUE_KEYS = ['key', 'value']
 class BaseStagger:
     """Base class for staging data in the kvstore."""
 
-    def __init__(self, key: str, value: bytes | dict | str | list[bytes | dict | str]):
+    def __init__(self, key: str, value: str | dict | list[str | dict]):
         """Initialize class properties."""
         self.key = key
         self.value = value

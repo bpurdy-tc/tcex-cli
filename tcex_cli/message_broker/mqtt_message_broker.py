@@ -5,6 +5,7 @@ import logging
 import ssl
 import time
 from collections.abc import Callable
+from typing import TypedDict
 
 # third-party
 import paho.mqtt.client as mqtt
@@ -16,6 +17,13 @@ from tcex_cli.pleb.cached_property import cached_property
 
 # get tcex logger
 _logger: TraceLogger = logging.getLogger(__name__.split('.', maxsplit=1)[0])  # type: ignore
+
+
+class OnMessageCallback(TypedDict):
+    """Typed structure for an on_message callback registration."""
+
+    callback: Callable[..., None]
+    topics: list[str]
 
 
 class MqttMessageBroker:
@@ -49,7 +57,7 @@ class MqttMessageBroker:
         self._on_connect_callbacks: list[Callable] = []
         self._on_disconnect_callbacks: list[Callable] = []
         self._on_log_callbacks: list[Callable] = []
-        self._on_message_callbacks: list[dict[str, Callable | list[str]]] = []
+        self._on_message_callbacks: list[OnMessageCallback] = []
         self._on_publish_callbacks: list[Callable] = []
         self._on_subscribe_callbacks: list[Callable] = []
         self._on_unsubscribe_callbacks: list[Callable] = []
@@ -87,7 +95,10 @@ class MqttMessageBroker:
         self._on_log_callbacks.insert(index, callback)
 
     def add_on_message_callback(
-        self, callback: Callable, index: int | None = None, topics: list[str] | None = None
+        self,
+        callback: Callable[..., None],
+        index: int | None = None,
+        topics: list[str] | None = None,
     ):
         """Add a callback for on_message events.
 
@@ -218,8 +229,8 @@ class MqttMessageBroker:
         for cd in self._on_message_callbacks:
             # if there are no topic restrictions, or the current message
             # topic is in the list of restrictions, call the callback
-            topics = cd.get('topics')
-            if (topics in ([], None) or message.topic in topics) and callable(cd['callback']):
+            topics = cd['topics']
+            if not topics or message.topic in topics:
                 cd['callback'](client, userdata, message)
 
     def on_publish(self, client, userdata, mid, rc, properties):

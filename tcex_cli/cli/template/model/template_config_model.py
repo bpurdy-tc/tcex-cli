@@ -32,7 +32,7 @@ class TemplateConfigModel(BaseModel):
         """DataModel Config"""
 
         arbitrary_types_allowed = True
-        json_encoders: ClassVar = {Version: lambda v: str(v)}
+        json_encoders: ClassVar = {Version: str}
         validate_assignment = True
 
     @property

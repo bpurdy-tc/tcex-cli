@@ -16,8 +16,8 @@ default_branch = 'v2'
 
 # typer does not yet support PEP 604, but pyupgrade will enforce
 # PEP 604. this is a temporary workaround until support is added.
-IntOrNone = Optional[int]  # noqa: UP007
-StrOrNone = Optional[str]  # noqa: UP007
+IntOrNone = Optional[int]
+StrOrNone = Optional[str]
 
 
 def command(
@@ -37,8 +37,34 @@ def command(
     force: bool = typer.Option(
         default=False, help="Update files from template even if they haven't changed."
     ),
+    managed: bool = typer.Option(
+        False,  # noqa: FBT003
+        '--managed',
+        help=(
+            'Silently update only template-managed (boilerplate) files without '
+            'prompting; all other files are left untouched and nothing is deleted.'
+        ),
+    ),
+    safe: bool = typer.Option(
+        default=False,
+        help='Apply only non-conflicting updates. Never prompt. Write files you have '
+        'modified to a plan file for a separate merge step.',
+    ),
+    plan_out: Path = typer.Option(
+        Path('.tcex-update/plan.json'),
+        help='Where to write the plan file when --safe is used. Relative paths are '
+        'resolved against the current directory.',
+    ),
     branch: str = typer.Option(
         default_branch, help='The git branch of the tcex-app-template repository to use.'
+    ),
+    authenticate: bool = typer.Option(
+        False,  # noqa: FBT003
+        '--authenticate',
+        help=(
+            'Authenticate to GitHub using the GITHUB_USER and GITHUB_PAT environment '
+            'variables (for private template forks or to raise the API rate limit).'
+        ),
     ),
     proxy_host: StrOrNone = typer.Option(None, help='(Advanced) Hostname for the proxy server.'),
     proxy_port: IntOrNone = typer.Option(None, help='(Advanced) Port number for the proxy server.'),
@@ -53,7 +79,19 @@ def command(
     Use --template and --type only for legacy projects where tcex.json is
     missing those values.
 
+    Use --managed for a silent, non-interactive run (e.g. scripting a
+    tcex2->tcex4 migration): only template-managed (boilerplate) files are
+    updated, all other files are left untouched, and nothing is deleted.
+
+    With --safe, files you have not modified are updated as usual, but files
+    you have modified are left untouched and recorded in a plan file along
+    with the template version you last synced, so a separate step can perform
+    a three-way merge. Nothing is overwritten and nothing is prompted.
+
+
     Optional environment variables include:\n
+    * GITHUB_USER\n
+    * GITHUB_PAT\n
     * PROXY_HOST\n
     * PROXY_PORT\n
     * PROXY_USER\n
@@ -70,6 +108,7 @@ def command(
         proxy_port,
         proxy_user,
         proxy_pass,
+        authenticate=authenticate,
     )
 
     tj_model = cli.app.tj.model
@@ -88,24 +127,36 @@ def command(
             'set in tcex.json. Remove the flag or clear the value in tcex.json.',
         )
 
+    # --force overwrites modified files, --safe never touches them. Opposite policies.
+    if force and safe:
+        Render.panel.failure('The --force and --safe flags are mutually exclusive.')
+
     if clear:
         cli.clear_cache(branch)
 
     try:
-        cli.update(branch, template_name, template_type, force=force)
+        cli.update(
+            branch,
+            template_name,
+            template_type,
+            force=force,
+            managed=managed,
+            safe=safe,
+            plan_out=plan_out,
+        )
 
         # use the resolved values for the summary
         resolved_name = template_name or tj_model.template_name
         resolved_type = template_type or tj_model.template_type
 
-        Render.table.key_value(
-            'Update Summary',
-            {
-                'Template Type': resolved_type,
-                'Template Name': resolved_name,
-                'Branch': branch,
-            },
-        )
+        summary = {
+            'Template Type': resolved_type,
+            'Template Name': resolved_name,
+            'Branch': branch,
+        }
+        if safe:
+            summary['Plan File'] = str(plan_out)
+        Render.table.key_value('Update Summary', summary)
     except Exception as ex:
         cli.log.exception('Failed to run "tcex update" command.')
         Render.panel.failure(f'Exception: {ex}')

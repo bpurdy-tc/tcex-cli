@@ -10,6 +10,12 @@
 -   APP-4920 - [Run] - Updated run command to support system apps
 -   APP-5036 - [Message-Broker] Updated message broker connection to not set tls_version
 -   APP-5055 - [Message-Broker] Updated Paho MQTT library and message broker reconnect logic
+-   APP-5299 - [Template] Added “--managed” to the “update” command to silently update only template-managed files
+-   APP-5300 - [Migrate] Updated “migrate” to preview by default with “--apply” and added “--no-prompt” for unattended runs
+-   APP-5301 - [Deps] Hardened dependency lock to avoid shell execution and never write an empty “requirements.lock”
+-   APP-5305 - [Run] Added “app_inputs.d/” multi-config support with a selection menu and a “--config” override
+-   APP-5306 - [Run] Added a hard error when a config references an undefined “${env.VAR}” environment variable
+-   APP-5307 - [Run] Added validation of config inputs against staged “stage.kvstore” variables before launch
 
 ## 1.0.5
 

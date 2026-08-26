@@ -47,9 +47,7 @@ def template_cli(tmp_path):
     tcex_dir = tmp_path / '.tcex'
     tcex_dir.mkdir(parents=True, exist_ok=True)
 
-    cli = TemplateCli(
-        proxy_host=None, proxy_port=None, proxy_user=None, proxy_pass=None
-    )
+    cli = TemplateCli(proxy_host=None, proxy_port=None, proxy_user=None, proxy_pass=None)
     # override the cached_property so _cache_dir uses tmp_path
     cli.__dict__['cli_out_path'] = tcex_dir
 

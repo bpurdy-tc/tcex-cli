@@ -2,11 +2,12 @@
 
 # standard library
 import atexit
+import difflib
 import json
 import logging
 import os
-import random
 import re
+import secrets
 import socket
 import string
 import sys
@@ -31,6 +32,9 @@ from tcex_cli.util import Util
 # get tcex logger
 _logger: TraceLogger = logging.getLogger(__name__.split('.', maxsplit=1)[0])  # type: ignore
 
+# pattern to match ${env.VARIABLE_NAME} placeholders (shared by detection and substitution)
+ENV_VAR_PATTERN = re.compile(r'(?P<env_pattern>\$\{env\.(?P<env_var_name>\w+)\})')
+
 
 class LaunchABC(ABC):
     """Run API Service Apps"""
@@ -52,7 +56,7 @@ class LaunchABC(ABC):
     def create_input_config(self, inputs: BaseModel):
         """Create files necessary to start a Service App."""
         data = inputs.json(exclude_none=False, exclude_unset=False, exclude_defaults=False)
-        key = ''.join(random.choice(string.ascii_lowercase) for i in range(16))  # nosec
+        key = ''.join(secrets.choice(string.ascii_lowercase) for _ in range(16))
         encrypted_data = self.util.encrypt_aes_cbc(key, data)
 
         # ensure that the in directory exists
@@ -93,9 +97,7 @@ class LaunchABC(ABC):
         Returns:
             The data structure with environment variables substituted
         """
-        # Pattern to match ${env.VARIABLE_NAME}
-        pattern = re.compile(r'(?P<env_pattern>\$\{env\.(?P<env_var_name>\w+)\})')
-        for match in pattern.finditer(data):
+        for match in ENV_VAR_PATTERN.finditer(data):
             env_pattern = match.group('env_pattern')
             env_var_name = match.group('env_var_name')
             # get os environment variable
@@ -104,23 +106,59 @@ class LaunchABC(ABC):
                 data = re.sub(re.escape(env_pattern), env_value, data)
         return data
 
+    def _validate_env_variables(self, data: str):
+        """Validate that every ${env.VARIABLE_NAME} placeholder resolves to a defined env var.
+
+        Args:
+            data: The raw config file text to scan for ${env.NAME} placeholders.
+        """
+        # collect referenced env var names that are not defined in the environment
+        undefined = sorted(
+            {
+                match.group('env_var_name')
+                for match in ENV_VAR_PATTERN.finditer(data)
+                if os.getenv(match.group('env_var_name')) is None
+            }
+        )
+        if undefined:
+            lines = []
+            for name in undefined:
+                line = f'• ${{env.{name}}}'
+                # best-effort "did you mean" suggestion against currently-defined env vars
+                matches = difflib.get_close_matches(name, list(os.environ), n=1, cutoff=0.7)
+                if matches:
+                    line += f' - did you mean ${{env.{matches[0]}}}?'
+                lines.append(line)
+
+            message = (
+                'The following ${env.NAME} placeholders reference environment variables that are '
+                'not defined:\n\n'
+                + '\n'.join(lines)
+                + '\n\nThese values come from the local .env file / environment. Define the '
+                'missing variable(s) or fix the typo, then run again.'
+            )
+            Render.panel.failure(message)
+
     def construct_model_inputs(self) -> dict:
         """Return the App inputs."""
         app_inputs = {}
         if self.config_json.is_file():
             try:
                 app_inputs_string = self.config_json.read_text(encoding='utf-8')
+                # fail fast on undefined ${env.X} before substitution / JSON parsing
+                self._validate_env_variables(app_inputs_string)
                 app_inputs_string = self._substitute_env_variables(app_inputs_string)
                 app_inputs = json.loads(app_inputs_string)
             except ValueError as ex:
-                print(f'Error loading app_inputs.json: {ex}')  # noqa: T201
-                sys.exit(1)
+                Render.panel.failure(
+                    f'Failed to parse JSON config file [{self.config_json}]:\n{ex}'
+                )
         return app_inputs
 
     def launch(self):
         """Launch the App."""
         # third-party
-        from run import Run  # type: ignore
+        from run import Run  # type: ignore  # noqa: PLC0415
 
         # run the app
         exit_code = 0
@@ -167,7 +205,7 @@ class LaunchABC(ABC):
         if output_data_:
             return {
                 k: json.loads(v)
-                for k, v in self.output_data_process(output_data_).items()  # type: ignore
+                for k, v in self.output_data_process(output_data_).items()
                 if k not in self.staged_keys
             }
         return {}
@@ -233,7 +271,7 @@ class LaunchABC(ABC):
         """Return requests Session object for TC admin account."""
         return RequestsTc(self.module_requests_tc_model).session  # type: ignore
 
-    def tc_token(self, token_type: str = 'api'):  # nosec
+    def tc_token(self, token_type: str = 'api'):  # nosec B107 -- 'api' is a token type, not a password
         """Return a valid API token."""
         data = None
         http_success = 200
@@ -244,7 +282,7 @@ class LaunchABC(ABC):
         if r.status_code == http_success:
             token = r.json().get('data')
             self.log.info(
-                f'step=setup, event=using-token, token={token}, token-elapsed={r.elapsed}'
+                f'step=setup, event=using-token, token=<redacted>, token-elapsed={r.elapsed}'
             )
         else:
             self.log.error(f'step=setup, event=failed-to-retrieve-token error="{r.text}"')

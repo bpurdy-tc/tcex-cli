@@ -28,7 +28,7 @@ class AppPlaybookModel(CommonModel, PlaybookCommonModel, PlaybookModel):
         case_sensitive = False
         env_file = '.env'
         env_file_encoding = 'utf-8'
-        json_encoders: ClassVar = {PosixPath: lambda v: str(v), Sensitive: lambda v: v.value}
+        json_encoders: ClassVar = {PosixPath: str, Sensitive: lambda v: v.value}
         validate_assignment = True
 
 
